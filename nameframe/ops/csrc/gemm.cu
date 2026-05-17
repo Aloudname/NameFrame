@@ -1,3 +1,5 @@
+// Simple CUDA implementation of GEMM (General Matrix Multiply) for PyTorch.
+
 #include <torch/extension.h>
 #include <cuda_runtime.h>
 
@@ -24,13 +26,13 @@ __global__ void gemm_kernel(
     int num_tiles = (K + TILE_SIZE - 1) / TILE_SIZE;
 
     for (int t = 0; t < num_tiles; ++t) {
-        // Load A tile [TILE_SIZE, TILE_SIZE] from global memory
+        // load A tile [TILE_SIZE, TILE_SIZE] from global memory
         if (row < M && (t * TILE_SIZE + tx) < K)
             As[ty][tx] = A[row * K + t * TILE_SIZE + tx];
         else
             As[ty][tx] = 0.0f;
 
-        // Load B tile [TILE_SIZE, TILE_SIZE] from global memory
+        // load B tile [TILE_SIZE, TILE_SIZE] from global memory
         if ((t * TILE_SIZE + ty) < K && col < N)
             Bs[ty][tx] = B[(t * TILE_SIZE + ty) * N + col];
         else
@@ -38,7 +40,7 @@ __global__ void gemm_kernel(
 
         __syncthreads();
 
-        // Accumulate partial dot product
+        // accumulate partial dot product
         #pragma unroll
         for (int k = 0; k < TILE_SIZE; ++k)
             sum += As[ty][k] * Bs[k][tx];
