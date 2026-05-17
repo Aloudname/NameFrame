@@ -52,7 +52,7 @@ NameFrame/
 │   │   ├── registry.py               # OP_REGISTRY + NATIVE_REGISTRY
 │   │   ├── backends/                 # CUDA/Cython/cpp/triton 编译
 │   │   ├── builtins/                 # 加速函数定义
-│   │   ├── csrc/                     # 源文件（.cu、.cpp）
+│   │   ├── csrc/                     # 源文件（.cu、.cpp、.pyx）
 │   │   └── verify.py                 # 验证源文件和回退
 │   ├── utils/                        # 杂活（日志、检查点、随机种子、设备）
 │   └── run.py                        # 用户入口

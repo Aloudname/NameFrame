@@ -52,7 +52,7 @@ NameFrame/
 │   │   ├── registry.py               # OP_REGISTRY + NATIVE_REGISTRY
 │   │   ├── backends/                 # CUDA/Cython/cpp/triton compilation
 │   │   ├── builtins/                 # Accelerated function definitions
-│   │   ├── csrc/                     # Source files (.cu, .cpp)
+│   │   ├── csrc/                     # Source files (.cu, .cpp, .pyx, etc.)
 │   │   └── verify.py                 # Verify source files and fallback
 │   ├── utils/                        # Utilities (logging, checkpoint, seed, device)
 │   └── run.py                        # User entry point
