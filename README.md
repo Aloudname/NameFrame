@@ -1,5 +1,8 @@
 # NameFrame Deep Learning Training Framework
 
+**Read this in other languages: [English](README.md), [中文](README_zh.md)**
+**其他语言版本: [English](README.md), [中文](README_zh.md)**
+
 ## Background
 
 Based on the `LoLA_hsViT` architecture, **NameFrame** is a standardized, modular deep learning training framework built by extracting and abstracting high-reuse patterns.
