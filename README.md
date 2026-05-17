@@ -1,8 +1,8 @@
 # NameFrame 深度学习训练框架
 
-**其他语言版本: [English](README.md), [中文](README_zh.md)**
+**Read this in other languages: [English](README_en.md)**
 
-**Read this in other languages: [English](README.md), [中文](README_zh.md)**
+**其他语言版本: [English](README_en.md)**
 
 ## 背景
 
