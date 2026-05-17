@@ -1,0 +1,32 @@
+# ---- python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+
+# ---- project outputs ----
+outputs/
+checkpoints/
+logs/
+
+# ---- ide ----
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ---- environment ----
+.env
+.venv/
+venv/
+
+# ---- data ----
+data/
+*.pth
+*.pt
+!pretrained/*.pt
+
+# ---- build artifacts ----
+build/
+*.so
+*.o

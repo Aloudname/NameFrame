@@ -1,0 +1,26 @@
+# {{PROJECT_NAME}} configuration.
+# Extends the NameFrame default template (see nameframe/config/template.yaml).
+# Only specify values that differ from the defaults.
+
+model:
+  name: "my_model"
+  in_channels: 3
+  num_classes: 10
+
+data:
+  dataset: "my_dataset"
+  data_root: "./data"
+
+train:
+  epochs: 100
+  batch_size: 32
+  lr: 0.001
+
+loss:
+  name: "cross_entropy"
+
+metrics:
+  names: ["accuracy"]
+
+pipeline:
+  output_dir: "./outputs"

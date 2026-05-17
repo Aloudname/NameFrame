@@ -1,0 +1,125 @@
+# NameFrame default configuration template.
+# Project configs only need to specify values that differ from these defaults.
+
+# ---- runtime ----
+runtime:
+  seed: 42
+  device: null             # null = auto; "cuda:1", "cpu" to force
+  use_amp: true
+  amp_dtype: "float16"     # float16 | bfloat16
+  num_workers: 4
+  pin_memory: true
+  progress_bar: true
+
+# ---- model ----
+model:
+  name: null               # registered model name (required in project config)
+  in_channels: 3
+  num_classes: 10
+  dropout: 0.1
+  freeze_backbone: false
+  pretrained: false
+  pretrained_path: null
+
+# ---- data ----
+data:
+  dataset: null             # registered dataset name
+  data_root: "./data"
+  train_split: 0.7
+  val_split: 0.15
+  test_split: 0.15
+  shuffle_train: true
+  augment:
+    enabled: false
+    flip_prob: 0.5
+    rotate_prob: 0.5
+    rotate_limit: 15
+    noise_std: 0.01
+
+# ---- train ----
+train:
+  epochs: 100
+  batch_size: 32
+  lr: 0.001
+  weight_decay: 0.0001
+  grad_clip: 1.0
+  grad_accumulation_steps: 1
+  ema_decay: 0.999
+  early_stop_patience: 10
+  early_stop_metric: "val_loss"
+
+# ---- optimizer ----
+optim:
+  name: "adamw"
+  betas: [0.9, 0.999]
+  eps: 1.0e-8
+  param_groups: []          # per-layer lr overrides: [{name: "backbone", lr_mult: 0.1}]
+
+# ---- scheduler ----
+scheduler:
+  name: "cosine"            # cosine | step | poly | plateau | onecycle | warmup_cosine
+  warmup_epochs: 5
+  min_lr: 1.0e-6
+  step_size: 30
+  step_gamma: 0.1
+  plateau_patience: 5
+  plateau_factor: 0.5
+
+# ---- loss ----
+loss:
+  name: "cross_entropy"
+  label_smoothing: 0.0
+  class_weights: null
+  # for composite loss:
+  components: []
+
+# ---- metrics ----
+metrics:
+  names: ["accuracy", "dice_score"]
+
+# ---- pipeline ----
+pipeline:
+  output_dir: "./outputs"
+  log_file: null
+  checkpoint_keep_top_k: 3
+  export_onnx: false
+  callbacks: []
+
+# ---- visualization ----
+visualization:
+  enabled: true
+  dpi: 150
+  fig_format: "png"
+  plot_training_curves: true
+  plot_confusion_matrix: true
+  plot_feature_distribution: false
+
+# ---- ops (accelerated native extensions) ----
+ops:
+  build_strategy: "lazy"    # lazy | eager
+  backend_priority:
+    - "triton"
+    - "cuda"
+    - "cython"
+    - "python"
+  verify_on_first_call: true
+  verify_tolerance: 1.0e-4
+  cache_dir: "~/.cache/nameframe/ops"
+  force_rebuild: false
+  verbose: false
+  cuda:
+    arch: ["8.0", "9.0"]
+    jit_opt_level: "-O3"
+    max_shared_memory: 49152
+  triton:
+    num_warps: 4
+    num_stages: 2
+  cython:
+    language_level: 3
+    compiler_directives:
+      boundscheck: false
+      wraparound: false
+  custom:
+    enabled: true
+    source_dir: "src/ops"
+    native_dir: "src/csrc"
