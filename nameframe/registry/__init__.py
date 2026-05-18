@@ -1,4 +1,4 @@
-"""Component registry system, bottom layer."""
+"""Registers, bottom layer."""
 
 from nameframe.registry.registry import (
     DATASET_REGISTRY,

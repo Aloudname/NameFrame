@@ -12,22 +12,19 @@ from munch import Munch
 
 
 class Visualizer:
-    """Generates publication-quality figures during and after training.
-
-    All figures are saved to ``output_dir/figures/``.
+    """Figures saved to ``output_dir/figures/``.
 
     Attributes:
-        output_dir: Root directory for saved figures.
-        dpi: Figure resolution.
+        output_dir: Root dir for saved figures.
+        dpi: Resolution.
         fig_format: File format (``"png"``, ``"pdf"``, ``"svg"``).
     """
 
     def __init__(self, output_dir: str, config: Munch) -> None:
-        """Initialize the visualizer.
-
+        """
         Args:
-            output_dir: Root output directory.
-            config: The ``config.visualization`` subtree.
+            output_dir: Root dir.
+            config: ``config.visualization``.
         """
         self.output_dir: str = os.path.join(output_dir, "figures")
         os.makedirs(self.output_dir, exist_ok=True)
@@ -43,10 +40,10 @@ class Visualizer:
         Args:
             history: List of per-epoch metric dicts with ``"train_loss"``,
                 ``"val_loss"`` keys.
-            fname: Output filename (without extension).
+            fname: Output filename without extension name.
 
         Returns:
-            Path to the saved figure, or ``None`` if matplotlib is unavailable.
+            Path to the saved figure.
         """
         try:
             import matplotlib.pyplot as plt
@@ -95,10 +92,10 @@ class Visualizer:
         Args:
             cm: ``(num_classes, num_classes)`` confusion matrix.
             class_names: Optional list of class name strings.
-            fname: Output filename (without extension).
+            fname: Output filename without extension name.
 
         Returns:
-            Path to the saved figure, or ``None`` if matplotlib is unavailable.
+            Path to the saved figure.
         """
         try:
             import matplotlib.pyplot as plt
@@ -137,7 +134,7 @@ class Visualizer:
         Args:
             features: ``(N, D)`` feature array.
             labels: ``(N,)`` integer label array.
-            fname: Output filename (without extension).
+            fname: Output filename without extension name.
 
         Returns:
             Path to the saved figure, or ``None`` if plotting fails.
@@ -178,7 +175,7 @@ class Visualizer:
         return path
 
     def _save_fig(self, fig: Any, name: str) -> str:
-        """Save figure to the output directory with consistent naming."""
+        """Save and ensure consistent naming."""
         path: str = os.path.join(self.output_dir, f"{name}.{self.fig_format}")
         fig.savefig(path, dpi=self.dpi, bbox_inches="tight")
         return path

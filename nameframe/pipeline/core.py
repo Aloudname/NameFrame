@@ -24,14 +24,14 @@ from nameframe.utils import seed_everything, tprint
 
 @dataclass
 class PipelineResult:
-    """Container returned by :meth:`Pipeline.run`.
+    """Container returned by method `Pipeline.run`.
 
     Attributes:
-        model_key: The model name from config.
-        output_dir: Path to the output directory.
-        best_epoch: Epoch index with the best metric.
-        best_val_metric: Value of the best validation metric.
-        metrics_json: Path to the saved metrics JSON file.
+        model_key: Model name from config.
+        output_dir: Output path.
+        best_epoch: Best metric epoch.
+        best_val_metric: Best eval metric.
+        metrics_json: Path to saved metrics .json.
     """
 
     model_key: str = ""
@@ -42,17 +42,16 @@ class PipelineResult:
 
 
 class Pipeline:
-    """Central orchestrator for the NameFrame training workflow.
+    """Core for the NameFrame training workflow.
 
-    Wires together config, data loaders, model, loss, metrics, trainer,
-    visualizer, and monitor. Depends only on abstract interfaces.
+    Wires config, dataloaders, model, loss, metrics, trainer,
+    visualizer and monitor. Depends only on abstract interfaces.
     """
 
     def __init__(self, config: Munch) -> None:
-        """Initialize the pipeline from configuration.
-
+        """
         Args:
-            config: Full project configuration Munch.
+            config: `Munch` config.
         """
         self.config: Munch = config
         self.output_dir: str = str(config.pipeline.get("output_dir", "./outputs"))
@@ -70,9 +69,9 @@ class Pipeline:
         self._data_loaders: Dict[str, DataLoader] = {}
 
     def run(self) -> PipelineResult:
-        """Execute the full training workflow.
+        """Training workflow.
 
-        build data -> build model -> train -> evaluate -> visualize.
+        build data -> build model -> train -> eval -> visualize.
 
         Returns:
             A :class:`PipelineResult` with training outcomes.
@@ -124,11 +123,11 @@ class Pipeline:
         return build_dataloaders(self.config)
 
     def build_model(self) -> nn.Module:
-        """Instantiate the model from config via registry."""
+        """Build models from config via registry."""
         return build_model(self.config)
 
     def build_loss(self) -> nn.Module:
-        """Build the loss function from config via registry."""
+        """Build losses from config via registry."""
         loss_name: str = self.config.loss.get("name", "cross_entropy")
         loss_cfg: Dict[str, Any] = (
             self.config.loss.toDict() if isinstance(self.config.loss, Munch)
@@ -138,7 +137,7 @@ class Pipeline:
         return loss_fn
 
     def build_metrics(self) -> MetricCollection:
-        """Build metric collection from config."""
+        """Build metrics from config."""
         metric_names: list = list(self.config.metrics.get("names", ["accuracy"]))
         num_classes: int = int(self.config.model.get("num_classes", 2))
         instances: list = []
@@ -153,13 +152,14 @@ class Pipeline:
         loss_fn: nn.Module,
         metrics: MetricCollection,
     ) -> TrainerResult:
-        """Delegate training to the :class:`Trainer`.
+        """
+        Train models via `Trainer`.
 
         Args:
-            model: The model to train.
-            loaders: Dict with ``"train"``, ``"val"`` keys.
-            loss_fn: Loss function.
-            metrics: Metric collection.
+            model: `nn.Module`.
+            loaders: `Dict` with `"train"`, `"val"` keys.
+            loss_fn: `nn.Module`.
+            metrics: `MetricCollection`.
 
         Returns:
             A :class:`TrainerResult`.
@@ -179,15 +179,15 @@ class Pipeline:
         loader: DataLoader,
         metrics: MetricCollection,
     ) -> Dict[str, float]:
-        """Run evaluation using the :class:`Trainer`.
+        """Run eval using `Trainer`.
 
         Args:
-            model: The trained model.
-            loader: Test or validation loader.
-            metrics: Metric collection.
+            model: Trained model `nn.Module`.
+            loader: test or eval loader `DataLoader`.
+            metrics: `MetricCollection`.
 
         Returns:
-            Dict of metric name -> value.
+            `Dict` of metric name -> value.
         """
         if self.trainer is None:
             self.trainer = Trainer(model, self.config)
@@ -201,14 +201,14 @@ class Pipeline:
         return self.trainer.validate(loader)
 
     def export_onnx(self, model: nn.Module, input_shape: tuple = (1, 3, 224, 224)) -> Optional[str]:
-        """Export the model to ONNX format.
+        """Export model to .onnx.
 
         Args:
-            model: The model to export.
-            input_shape: Dummy input shape.
+            model: `nn.Module`.
+            input_shape: Specify according to model input shape.
 
         Returns:
-            Path to the exported ``.onnx`` file, or ``None`` if export fails.
+            Path to ``.onnx`` or ``None`` if fails.
         """
         try:
             import torch
@@ -236,10 +236,10 @@ class Pipeline:
         eval_metrics: Dict[str, float],
         monitor_report: MonitorReport,
     ) -> str:
-        """Save all metrics to a JSON file.
+        """Save all metrics to a .json.
 
         Returns:
-            Path to the JSON file.
+            .json path.
         """
         data: Dict[str, Any] = {
             "best_epoch": train_result.best_epoch,

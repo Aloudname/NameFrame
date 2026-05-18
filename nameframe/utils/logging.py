@@ -9,14 +9,12 @@ from typing import Optional, TextIO
 
 
 def tprint(*args: object, **kwargs: object) -> None:
-    """Print with a ``[HH:MM:SS]`` timestamp prefix.
-
-    Accepts the same arguments as built-in :func:`print`.
+    """
+    Print with a ``[HH:MM:SS]`` timestamp prefix.
 
     Args:
-        *args: Positional arguments forwarded to ``print``.
-        **kwargs: Keyword arguments forwarded to ``print``
-            (e.g. ``file=...``, ``end=...``).
+        *args: Pos arguments to ``print``.
+        **kwargs: Kwd arguments to ``print``
     """
     ts: str = datetime.now().strftime("[%H:%M:%S]")
     print(ts, *args, **kwargs)
@@ -27,7 +25,8 @@ def setup_logger(
     log_file: Optional[str] = None,
     level: int = logging.INFO,
 ) -> logging.Logger:
-    """Create or retrieve a logger with console and optional file output.
+    """
+    Create or retrieve a logger with console and optional file output.
 
     Args:
         name: Logger name (typically ``__name__``).
@@ -35,7 +34,7 @@ def setup_logger(
         level: Logging level (default ``logging.INFO``).
 
     Returns:
-        A configured :class:`logging.Logger` instance.
+        A configured class `logging.Logger` instance.
 
     Example:
         >>> logger = setup_logger(__name__, "train.log")

@@ -1,4 +1,4 @@
-"""Component registry system for pluggable model/dataset/loss/metric components."""
+"""Register for model/dataset/loss/metric."""
 
 from __future__ import annotations
 
@@ -8,20 +8,19 @@ T = TypeVar("T", bound=Callable[..., Any])
 
 
 class Registry:
-    """A named registry mapping string keys to callables or classes.
+    """A register mapping str keys to callables or classes.
 
-    Enables zero-code-change extensibility: new components are discovered
-    automatically when their module is imported and the decorator runs.
+    New components are registed if they are decorated.
 
     Attributes:
-        name: Human-readable name for this registry (e.g. "model", "loss").
+        name: Type name for this registry (e.g. "model", "loss").
     """
 
     def __init__(self, name: str) -> None:
-        """Initialize an empty registry.
+        """Init empty registry.
 
         Args:
-            name: Human-readable identifier for diagnostics.
+            name: Type name.
         """
         self.name: str = name
         self._registry: Dict[str, Callable[..., Any]] = {}
@@ -30,10 +29,10 @@ class Registry:
         """Decorator to register a callable or class under a given name.
 
         Args:
-            name: Key to register under. If None, uses ``cls_or_fn.__name__``.
+            name: If None, uses ``cls.__name__`` or ``fn.__name__``.
 
         Returns:
-            A decorator that registers the target and returns it unchanged.
+            Decorator.
 
         Example:
             >>> @MODEL_REGISTRY.register("my_model")
@@ -55,13 +54,10 @@ class Registry:
         """Retrieve a registered component by name.
 
         Args:
-            name: The registered key.
+            name: Key.
 
         Returns:
-            The registered callable or class.
-
-        Raises:
-            KeyError: If *name* is not found.
+            Callable/class.
         """
         if name not in self._registry:
             available: str = ", ".join(sorted(self._registry.keys()))
@@ -75,20 +71,20 @@ class Registry:
         """Get a registered component or attempt dynamic import.
 
         Args:
-            name: The registered key or dotted import path.
-            **kwargs: Forwarded to the callable on instantiation.
+            name: key or import path.
+            **kwargs: Forwarded to the callable obj.
 
         Returns:
-            The instantiated component.
+            Component instance.
         """
         if name in self._registry:
             return self._registry[name](**kwargs)
-        # fallback: dynamic import
+        # if fails, fallback to dynamic import
         parts: List[str] = name.split(".")
         module_path: str = ".".join(parts[:-1])
         attr_name: str = parts[-1]
+        
         import importlib
-
         module = importlib.import_module(module_path)
         cls_or_fn = getattr(module, attr_name)
         return cls_or_fn(**kwargs)
@@ -97,20 +93,19 @@ class Registry:
         """Return sorted list of all registered names.
 
         Returns:
-            Alphabetically sorted name list.
+            Name list.
         """
         return sorted(self._registry.keys())
 
     def __contains__(self, name: str) -> bool:
-        """Check whether *name* is registered."""
+        """Check if *name* registered."""
         return name in self._registry
 
     def __repr__(self) -> str:
         return f"Registry(name={self.name!r}, entries={len(self._registry)})"
 
 
-# ---- global registries ----
-
+# global registries
 MODEL_REGISTRY: Registry = Registry("model")
 """Global registry for model classes (subclasses of BaseModel)."""
 

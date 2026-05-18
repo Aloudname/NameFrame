@@ -24,11 +24,11 @@ def save_checkpoint(
     """Save a training checkpoint to disk.
 
     Args:
-        path: Destination file path (e.g. ``"checkpoints/epoch_10.pt"``).
+        path: Save file path in ``.pt``.
         model: The model whose ``state_dict`` will be saved.
         optimizer: Optional optimizer to persist.
         scheduler: Optional LR scheduler to persist.
-        epoch: Current epoch number (0-indexed).
+        epoch: Current epoch number (0-start).
         metrics: Optional dict of scalar metrics to embed.
     """
     os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -88,9 +88,9 @@ class CheckpointManager:
     """Manages checkpoint rotation, keeping only the top-K best checkpoints.
 
     Attributes:
-        output_dir: Directory where checkpoints are stored.
-        keep_top_k: Maximum number of checkpoints to retain.
-        mode: ``"max"`` for higher-is-better metrics, ``"min"`` for lower-is-better.
+        output_dir: Checkpoint save dir.
+        keep_top_k: Max checkpoints.
+        mode: ``"max"`` for higher-better metrics, ``"min"`` for lower-better.
     """
 
     def __init__(
@@ -99,12 +99,11 @@ class CheckpointManager:
         keep_top_k: int = 3,
         mode: str = "max",
     ) -> None:
-        """Initialize the checkpoint manager.
-
+        """
         Args:
-            output_dir: Directory for checkpoint files.
-            keep_top_k: Retain at most this many checkpoints.
-            mode: Comparison direction: ``"max"`` or ``"min"``.
+            output_dir: Checkpoint save dir.
+            keep_top_k: Max checkpoints.
+            mode: ``"max"`` or ``"min"``.
         """
         self.output_dir: str = output_dir
         self.keep_top_k: int = keep_top_k
@@ -135,8 +134,8 @@ class CheckpointManager:
             metric_key: Which metric key to use for ranking.
 
         Returns:
-            Path to the saved checkpoint file, or ``None`` if this
-            checkpoint did not make the top-K cut.
+            Path to the saved checkpoint file,
+            or ``None`` if this checkpoint failed to make top-K cut.
         """
         os.makedirs(self.output_dir, exist_ok=True)
 

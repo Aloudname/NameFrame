@@ -1,4 +1,4 @@
-"""Metrics analyzer, computation of classification/segmentation metrics."""
+"""Metrics analyzer, computes classification/segmentation metrics."""
 
 from __future__ import annotations
 
@@ -11,13 +11,13 @@ import torch
 
 @dataclass
 class MetricsBundle:
-    """Container for computed evaluation metrics.
+    """Container for computed eval metrics.
 
     Attributes:
-        summary: Flat dict of metric name -> scalar value.
-        per_class: Dict of per-class metric name -> list of per-class values.
-        confusion_matrix: Raw confusion matrix ``(num_classes, num_classes)``.
-        roc_curves: Optional dict of class_index -> (fpr, tpr) tuples.
+        summary: `Dict` of metric name -> scalar value.
+        per_class: `Dict` of per-class metric name -> list of per-class values.
+        confusion_matrix: `Tuple` of `(num_classes, num_classes)`.
+        roc_curves: Optional `Dict` of class_index `int` -> (fpr, tpr) `Tuple`.
     """
 
     summary: Dict[str, float] = field(default_factory=dict)
@@ -27,9 +27,9 @@ class MetricsBundle:
 
 
 class Analyzer:
-    """Stateless metrics computer for classification and segmentation.
+    """Stateless metrics computer.
 
-    Takes raw predictions and targets, returns a :class:`MetricsBundle`.
+    Takes raw preds and targets, returns a `MetricsBundle`.
     """
 
     def compute(
@@ -39,16 +39,16 @@ class Analyzer:
         probs: Optional[torch.Tensor] = None,
         num_classes: int = 2,
     ) -> MetricsBundle:
-        """Compute a comprehensive set of metrics.
+        """A set of metrics.
 
         Args:
-            preds: Predicted class indices ``(N,)`` or ``(B, H, W)``.
-            targets: Ground truth labels, same shape as *preds*.
-            probs: Optional probability/logit tensor ``(N, C)`` for ROC.
+            preds: `torch.Tensor` preds of `(N,)` or `(B, H, W)`.
+            targets: `torch.Tensor` gt labels, same shape as `preds`.
+            probs: Optional `torch.Tensor` prob/logit ``(N, C)`` for ROC.
             num_classes: Number of classes.
 
         Returns:
-            A :class:`MetricsBundle` with summary and per-class results.
+            `MetricsBundle` with summary and metrics.
         """
         preds_flat: np.ndarray = preds.cpu().numpy().flatten().astype(np.int64)
         targets_flat: np.ndarray = targets.cpu().numpy().flatten().astype(np.int64)
@@ -89,13 +89,13 @@ class Analyzer:
         )
 
     def summarize(self, bundle: MetricsBundle) -> str:
-        """Format a :class:`MetricsBundle` as a readable multi-line summary.
+        """Form `MetricsBundle` as a text summary.
 
         Args:
-            bundle: The computed metrics.
+            bundle: `MetricsBundle`.
 
         Returns:
-            Human-readable summary string.
+            `str`.
         """
         lines: List[str] = ["--- Metrics Summary ---"]
         for name, value in bundle.summary.items():
@@ -110,13 +110,13 @@ class Analyzer:
         return "\n".join(lines)
 
     def per_class_report(self, bundle: MetricsBundle) -> str:
-        """Generate a per-class precision/recall/F1 report.
+        """Per-class precision/recall/F1 report.
 
         Args:
-            bundle: The computed metrics.
+            bundle: `MetricsBundle`.
 
         Returns:
-            Per-class report string.
+            `str`.
         """
         prec: List[float] = bundle.per_class.get("precision", [])
         rec: List[float] = bundle.per_class.get("recall", [])
