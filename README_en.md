@@ -279,7 +279,7 @@ Background GPU/CPU resource monitor: `start()` / `stop()` -> `MonitorReport` (pe
 | `logging.py` | `tprint(*args)`, `setup_logger(name, log_file)` |
 | `checkpoint.py` | `save_checkpoint()`, `load_checkpoint()`, `CheckpointManager(output_dir, keep_top_k)` |
 | `seed.py` | `seed_everything(seed)` |
-| `device.py` | `auto_device(preferred=None)` -> `torch.device` |
+| `device.py` | `device(preferred=None)` -> `torch.device` |
 
 ### 2.10 CLI `nameframe/cli/main.py`
 

@@ -7,15 +7,11 @@ from typing import Optional
 
 
 def seed_everything(seed: Optional[int] = None) -> int:
-    """Set a deterministic random seed for Python, NumPy, and PyTorch.
+    """
+    A random seed for Python, NumPy, and PyTorch.
+    Generates a seed from a seed :D
 
     If *seed* is ``None``, a random seed is generated via stdlib.
-
-    Args:
-        seed: Integer seed value. If ``None``, a random int is produced.
-
-    Returns:
-        The seed value that was actually used.
     """
     if seed is None:
         seed = random.randint(0, 2**31 - 1)

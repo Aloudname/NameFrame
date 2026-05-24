@@ -1,4 +1,4 @@
-"""Automatic device selection for PyTorch operations."""
+"""Device for PyTorch operations."""
 
 from __future__ import annotations
 
@@ -7,20 +7,17 @@ from typing import Optional
 import torch
 
 
-def auto_device(preferred: Optional[str] = None) -> torch.device:
-    """Select the best available torch device.
-
-    Priority: explicit *preferred* > CUDA > MPS (Apple Silicon) > CPU.
-
+def device(preferred: Optional[str | torch.device] = None) -> torch.device:
+    """
     Args:
-        preferred: Force a specific device string (e.g. ``"cuda:1"``,
-            ``"cpu"``). When ``None``, auto-detect the best option.
+        preferred: A specific device string (e.g. ``"cuda:1"``,
+            ``"cpu"``) or ``torch.device``.
 
     Returns:
-        A :class:`torch.device` object ready for ``.to(device)`` calls.
+        `torch.device` obj.
 
     Example:
-        >>> device = auto_device()
+        >>> device = device()
         >>> model = model.to(device)
     """
     if preferred is not None:

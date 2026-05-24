@@ -1,4 +1,4 @@
-"""Training loop, Trainer encapsulates the training/validation/evaluation loop."""
+"""Training loop, Trainer encapsulates train/eval/test loop."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from torch.utils.data import DataLoader
 from nameframe.optim import build_optimizer, build_scheduler
 from nameframe.utils import tprint
 from nameframe.utils.checkpoint import CheckpointManager, save_checkpoint
-from nameframe.utils.device import auto_device
+from nameframe.utils.device import device
 
 
 @dataclass
@@ -25,9 +25,9 @@ class TrainerResult:
 
     Attributes:
         history: List of per-epoch metric dicts.
-        best_epoch: Epoch index with the best monitored metric.
-        best_metric: Value of the best monitored metric.
-        checkpoint_path: Path to the best checkpoint file.
+        best_epoch: Epoch index with best metric.
+        best_metric: Best metric value.
+        checkpoint_path: Path to best checkpoint.
     """
 
     history: List[Dict[str, float]] = field(default_factory=list)
@@ -37,10 +37,10 @@ class TrainerResult:
 
 
 class ModelEMA:
-    """Exponential Moving Average of model weights.
+    """Exponential Moving Average (EMA) of model weights.
 
     Attributes:
-        model: The original model.
+        model: Original model.
         decay: EMA decay rate.
     """
 
@@ -60,7 +60,7 @@ class ModelEMA:
                 self.shadow[name] = self.shadow[name] * self.decay + param.data * (1.0 - self.decay)
 
     def apply_shadow(self) -> None:
-        """Replace model weights with EMA shadow weights (for evaluation)."""
+        """Replace model weights with EMA shadow weights for eval."""
         for name, param in self.model.named_parameters():
             if param.requires_grad:
                 self._backup[name] = param.data.clone()
@@ -75,28 +75,26 @@ class ModelEMA:
 
 
 class Trainer:
-    """Training loop engine.
-
-    Knows nothing about model architecture or data format — only depends
-    on ``nn.Module``, ``DataLoader``, and loss/metrics through their
-    abstract interfaces.
+    """
+    Loop engine knows nothing about model architecture or data format,
+    but only depends on ``nn.Module``, ``DataLoader``,
+    and loss/metrics through their abstract interfaces.
 
     Attributes:
-        model: The model being trained.
-        config: Full project configuration Munch.
-        device: The torch device used for training.
+        model: Model in loops.
+        config: `Munch` instance.
+        device: `torch.device` or `str`.
     """
 
     def __init__(self, model: nn.Module, config: Munch) -> None:
-        """Initialize the trainer.
-
+        """
         Args:
-            model: A :class:`BaseModel` subclass instance.
-            config: Full project configuration Munch.
+            model: `BaseModel` inherited instance.
+            config: `Munch` instance.
         """
         self.model: nn.Module = model
         self.config: Munch = config
-        self.device: torch.device = auto_device(config.runtime.get("device"))
+        self.device: torch.device = device(config.runtime.get("device"))
         self.model.to(self.device)
 
         self.optimizer: torch.optim.Optimizer = build_optimizer(model, config)
@@ -128,18 +126,18 @@ class Trainer:
         self._early_stop_metric: str = str(config.train.get("early_stop_metric", "val_loss"))
 
     def set_loss(self, loss_fn: nn.Module) -> None:
-        """Inject the loss function.
+        """Inject loss function.
 
         Args:
-            loss_fn: A :class:`BaseLoss` instance.
+            loss_fn: `BaseLoss` instance.
         """
         self._loss_fn = loss_fn
 
     def set_metrics(self, metrics: Any) -> None:
-        """Inject the metrics collection.
+        """Inject metrics collection.
 
         Args:
-            metrics: A :class:`MetricCollection` instance.
+            metrics: `MetricCollection` instance.
         """
         self._metrics = metrics
 
@@ -149,25 +147,24 @@ class Trainer:
         val_loader: DataLoader[tuple[torch.Tensor, torch.Tensor]],
         epochs: int,
     ) -> TrainerResult:
-        """Run the full training loop with early stopping.
+        """
+        Run full training loop with early stopping.
+        NOTE: Raises `ValueError` if loss_fn or metrics not been set.
 
         Args:
-            train_loader: Training data loader.
-            val_loader: Validation data loader.
-            epochs: Number of epochs to train.
+            train_loader: Train dataloader.
+            val_loader: Eval dataloader.
+            epochs: Num_epochs.
 
         Returns:
-            A :class:`TrainerResult` with training history and best checkpoint info.
-
-        Raises:
-            ValueError: If loss_fn or metrics have not been set.
+            `TrainerResult` instance.
         """
         if self._loss_fn is None:
             raise ValueError("loss_fn not set. Call trainer.set_loss() first.")
         if self._metrics is None:
             raise ValueError("metrics not set. Call trainer.set_metrics() first.")
 
-        # build scheduler after data loaders are known (for step-based schedulers)
+        # scheduler
         steps_per_epoch: int = len(train_loader)
         scheduler: object = build_scheduler(self.optimizer, self.config, steps_per_epoch)
 
@@ -180,14 +177,14 @@ class Trainer:
             epoch_record: Dict[str, float] = {"epoch": float(epoch), **train_metrics, **val_metrics}
             self._history.append(epoch_record)
 
-            # step epoch-level scheduler
+            # step epoch scheduler
             if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
                 monitor_val: float = val_metrics.get(self._early_stop_metric, 0.0)
                 scheduler.step(monitor_val)
             else:
                 scheduler.step()
 
-            # checkpointing
+            # checkpoint
             monitor_score: float = val_metrics.get(self._early_stop_metric, 0.0)
             is_plateau_based: bool = "loss" in self._early_stop_metric.lower()
             is_better: bool = (
@@ -226,13 +223,12 @@ class Trainer:
     def train_one_epoch(
         self, loader: DataLoader[tuple[torch.Tensor, torch.Tensor]]
     ) -> Dict[str, float]:
-        """Run a single training epoch.
-
+        """
         Args:
-            loader: Training data loader.
+            loader: Training dataloader.
 
         Returns:
-            Dict with ``"train_loss"`` and other batch-aggregated metrics.
+            Metrics `Dict`.
         """
         self.model.train()
         total_loss: float = 0.0
@@ -278,13 +274,12 @@ class Trainer:
     def validate(
         self, loader: DataLoader[tuple[torch.Tensor, torch.Tensor]]
     ) -> Dict[str, float]:
-        """Run validation on the entire loader.
-
+        """
         Args:
-            loader: Validation data loader.
+            loader: Eval data loader.
 
         Returns:
-            Dict with ``"val_loss"`` and metric keys.
+            Metric `Dict`.
         """
         self.model.eval()
         if self.ema is not None:
@@ -323,14 +318,13 @@ class Trainer:
         loader: DataLoader[tuple[torch.Tensor, torch.Tensor]],
         keep_images: bool = False,
     ) -> Dict[str, torch.Tensor]:
-        """Run inference and return predictions.
-
+        """
         Args:
-            loader: Data loader for inference.
+            loader: test dataloader.
             keep_images: If ``True``, include input images in output.
 
         Returns:
-            Dict with ``"preds"``, ``"targets"``, and optionally ``"images"``.
+            `Dict` with keys `"preds"`, `"targets"`, `"images"`.
         """
         self.model.eval()
         all_preds: List[torch.Tensor] = []

@@ -12,17 +12,19 @@ from munch import Munch
 
 
 def build_optimizer(model: nn.Module, config: Munch) -> optim.Optimizer:
-    """Build an optimizer from config.
+    """
+    Build an optimizer from config.
 
-    Supports ``adamw``, ``sgd``, ``adam``. Handles per-layer learning-rate
+    Supports ``adamw``, ``sgd``, ``adam``.
+    Handles per-layer lr scheduler.
     multipliers via ``config.optim.param_groups``.
 
     Args:
-        model: The model whose parameters will be optimized.
-        config: Full project config Munch.
+        model: `nn.Module`.
+        config: `Munch`.
 
     Returns:
-        A PyTorch :class:`Optimizer` instance.
+        `torch.optim.Optimizer` instance.
     """
     opt_name: str = config.optim.get("name", "adamw").lower()
     lr: float = float(config.train.lr)
@@ -59,14 +61,12 @@ def build_scheduler(
     ``onecycle``, ``warmup_cosine``.
 
     Args:
-        optimizer: The optimizer to schedule.
-        config: Full project configuration Munch.
-        steps_per_epoch: Number of optimizer steps per epoch (used by
-            ``onecycle`` and ``warmup_cosine`` for total step calculation).
+        optimizer: `torch.optim.Optimizer`.
+        config: `Munch`.
+        steps_per_epoch: `int`.
 
     Returns:
-        A PyTorch scheduler object (e.g. :class:`LRScheduler` or
-        :class:`ReduceLROnPlateau`).
+        A torch scheduler object (e.g. `LRScheduler` or `ReduceLROnPlateau`).
     """
     sched_name: str = config.scheduler.get("name", "cosine").lower()
     epochs: int = int(config.train.epochs)
@@ -124,12 +124,12 @@ def _resolve_param_groups(
     """Convert named per-layer LR multiplier config into param_group dicts.
 
     Args:
-        model: The model.
+        model: `nn.Module`.
         base_lr: Base learning rate.
-        groups_cfg: List of ``{name: str, lr_mult: float}`` dicts.
+        groups_cfg: `List` of `{name: str, lr_mult: float}` Dicts.
 
     Returns:
-        List of param_group dicts for the optimizer.
+        `List` of param_group Dicts for the optimizer.
     """
     if not groups_cfg:
         return [{"params": model.parameters()}]

@@ -1,4 +1,4 @@
-"""Programmatic entry point for NameFrame training pipelines.
+"""Entry point for NameFrame training pipelines.
 
 Used by both the CLI (`nameframe run`) and interactive environments
 like Jupyter notebooks::
@@ -24,13 +24,13 @@ def run(
     """Execute a full training pipeline.
 
     Args:
-        config_path: Path to a YAML config file, or a pre-loaded Munch.
+        config_path: Path to a .yaml config or a pre-loaded Munch.
             Defaults to ``"config/config.yaml"``.
         config_overrides: Optional dict of dotted-key overrides merged
             on top of the loaded config.
 
     Returns:
-        A :class:`PipelineResult` with training outcomes.
+        Instance of class `PipelineResult` with training outcomes.
 
     Example:
         >>> result = run("config/config.yaml", {"train.epochs": 200})
