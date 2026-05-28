@@ -1,4 +1,4 @@
-// Simple CUDA implementation of GEMM (General Matrix Multiply) for PyTorch.
+// CUDA implementation of GEMM (General Matrix Multiply).
 
 #include <torch/extension.h>
 #include <cuda_runtime.h>
