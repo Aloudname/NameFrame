@@ -2,7 +2,7 @@
 automatic module discovery is the third method of registry.
 
 scans a directory tree and imports every module found,
-triggering side-effect registrations from `@reg.*.register` decorator calls.
+triggering side-effect registrations from `@*.register` decorator calls.
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ def discover(directory: Path) -> None:
     """
     recursively imports all modules in a directory tree.
 
-    each imported module can be triggered by `@reg.*.register`.
+    each imported module can be triggered by `@*.register`.
 
     params:
     - `directory`: `Path` type, root directory to scan.

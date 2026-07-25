@@ -1,12 +1,46 @@
-# .gitignore
-
-# Byte-compiled / optimized / DLL files
+# byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
 
-# settings
-.vscode/
-
 # docs
 docs/
+
+# pytest
+.pytest_cache/
+
+# jupyter
+.ipynb_checkpoints/
+
+# virtual environments
+.venv/
+venv/
+.env
+
+# build / packaging
+*.egg-info/
+dist/
+build/
+eggs/
+*.egg
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# logs
+*.log
+
+# test coverage
+.coverage
+coverage.xml
+htmlcov/
+.tox/
+.nox/
+
+# OS
+Thumbs.db

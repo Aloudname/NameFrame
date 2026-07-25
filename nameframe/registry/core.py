@@ -82,10 +82,10 @@ class Registry:
         if `name` is `None`, auto convert class name from CamelCase to snake_case.
         usage:
 
-            @reg.model.register("my_vit")
+            @model.register("my_vit")
             class MyViT(nn.Module): ...
 
-            @reg.model.register()       # registers as 'my_vit'
+            @model.register()       # registers as 'my_vit'
             class MyViT(nn.Module): ...
 
         params:
@@ -110,7 +110,7 @@ class Registry:
         used for importing components from third-party libraries.
         usage:
 
-            reg.model.register_external("resnet50", torchvision.models.resnet50)
+            model.register_external("resnet50", torchvision.models.resnet50)
 
         params:
         - `name`: `str` type as registry key.
@@ -174,10 +174,10 @@ class Registry:
     def conflicting_keys(self, namespace: str) -> list[str]:
         """
         check if registered components conflict with given namespace.
-        
+
         params:
         - `namespace`: `str` type.
-        
+
         returns:
         - `List[str]` of repeated components.
         """
