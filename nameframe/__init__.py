@@ -1,8 +1,9 @@
-"""NameFrame is a standard, modular deep learning training framework.
-
-License: MIT
+"""
+nameframe is a modular, standardized deep learning training framework.
 """
 
-__version__: str = "0.1.0"
-__author__: str = "Aloudname"
-__date__: str = "2024-05-01"
+__version__ = "0.1.0.dev0"
+
+from nameframe import registry, utils
+
+__all__ = ["registry", "utils"]

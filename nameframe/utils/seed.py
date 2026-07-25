@@ -1,39 +1,54 @@
-"""Deterministic random seed initialization across all backends."""
+"""
+seed management for reproduce.
 
-from __future__ import annotations
+provides functions to set global seeds across all random backends
+and to derive independent sub-seeds for isolated components.
+"""
 
+import hashlib
 import random
-from typing import Optional
+
+import numpy as np
+import torch
 
 
-def seed_everything(seed: Optional[int] = None) -> int:
+def set_seed(seed: int) -> None:
     """
-    A random seed for Python, NumPy, and PyTorch.
-    Generates a seed from a seed :D
+    sets global random seeds across all supported backends.
 
-    If *seed* is ``None``, a random seed is generated via stdlib.
+    configures random, numpy, torch-cpu, torch-cuda,
+    and forces cudnn to a deterministic mode.
+    this is the single entry point for making a training run reproducible.
+
+    params:
+    - `seed`: `int` type, master seed value.
     """
-    if seed is None:
-        seed = random.randint(0, 2**31 - 1)
-
     random.seed(seed)
-    try:
-        import numpy as np
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
 
-        np.random.seed(seed)
-    except ImportError:
-        pass
 
-    try:
-        import torch
+def derive_seed(base_seed: int, component: str, rank: int = 0) -> int:
+    """
+    derives an independent seed for a component from a master seed.
 
-        torch.manual_seed(seed)
-        if torch.cuda.is_available():
-            torch.cuda.manual_seed(seed)
-            torch.cuda.manual_seed_all(seed)
-            torch.backends.cudnn.deterministic = True
-            torch.backends.cudnn.benchmark = False
-    except ImportError:
-        pass
+    uses an md5 hash of the component name for stable offset.
+    this ensures same seed between different components,
+    while keeping reproducibility given the same base seed.
 
-    return seed
+    params:
+    - `base_seed`: `int` type, the master seed from set_seed().
+    - `component`: `str` type, unique id (e.g. 'model_init', 'dropout').
+    - `rank`: `int` type, the distributed process rank. default 0.
+
+    returns:
+    - `int` type, the derived seed.
+    """
+    hash_bytes: bytes = hashlib.md5(component.encode()).digest()
+    offset: int = int.from_bytes(hash_bytes[:4], byteorder="big") % 10000
+    return base_seed + offset + rank * 1000
