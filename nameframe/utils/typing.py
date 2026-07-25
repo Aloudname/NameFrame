@@ -9,6 +9,8 @@ protocols use structural subtyping via `typing.Protocol`,
 so components do not need to explicitly inherit.
 """
 
+from __future__ import annotations
+
 from collections.abc import Callable, Iterator
 from typing import Any, Protocol, TypedDict
 

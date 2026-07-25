@@ -23,7 +23,8 @@ from nameframe.utils import (
 
 def test_version_is_string():
     assert isinstance(__version__, str)
-    assert __version__.count(".") == 2
+    # PEP 440: accept "0.1.0", "0.1.0.dev0", "1.0.0rc1" etc.
+    assert __version__.count(".") >= 2
 
 
 def test_all_registry_instances_exist():

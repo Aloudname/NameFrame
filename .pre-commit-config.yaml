@@ -1,0 +1,10 @@
+repos:
+  - repo: local
+    hooks:
+      - id: pytest
+        name: pytest (phase 1)
+        entry: /home/chenhaoran/BASE/anaconda3/envs/LoLA/bin/python -m pytest nameframe/tests/ -v
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]

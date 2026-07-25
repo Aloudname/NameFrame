@@ -32,8 +32,8 @@ class TestRegistryRegister:
         class MyViTBlock:
             pass
 
-        # MyViTBlock -> my_vi_tblock (edge case with consecutive caps)
-        assert "my_vi_tblock" in r
+        # MyViTBlock -> my_vi_t_block (edge case with consecutive caps)
+        assert "my_vi_t_block" in r
 
     def test_register_external_adds_item(self):
         r = Registry("test")
