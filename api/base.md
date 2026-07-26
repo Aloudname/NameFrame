@@ -12,7 +12,7 @@
 | 符号 | 类型 | 说明 |
 |------|------|------|
 | `__version__` | `str` | 版本号 |
-| `registry` | module | 提供全局注册实例 `Registry` |
+| `registry` | module | 组件注册 |
 | `utils` | module | 通信协议和种子、环境等零碎小工具 |
 
 ```python

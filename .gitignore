@@ -6,11 +6,17 @@ __pycache__/
 # docs
 docs/
 
-# test files
+# test
 tests/
+
+# package-internal test directory (tests belong at repo root)
+nameframe/tests/
 
 # pytest
 .pytest_cache/
+
+# mypy
+.mypy_cache/
 
 # jupyter
 .ipynb_checkpoints/

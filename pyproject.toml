@@ -25,7 +25,7 @@ dev = [
 nameframe = ["py.typed"]
 
 [tool.pytest.ini_options]
-testpaths = ["nameframe/tests"]
+testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]

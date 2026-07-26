@@ -27,4 +27,4 @@ jobs:
           pip install numpy pytest
 
       - name: Run tests
-        run: python -m pytest nameframe/tests/ -v
+        run: python -m pytest tests/ -v
