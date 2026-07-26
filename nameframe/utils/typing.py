@@ -4,7 +4,7 @@ shared type definitions for the framework.
 all component protocols are defined here,
 to avoid circular imports between subpackages.
 
-NOTE: 
+NOTE:
 protocols use structural subtyping via `typing.Protocol`,
 so components do not need to explicitly inherit.
 """
@@ -180,3 +180,45 @@ class FieldSchema(TypedDict, total=False):
 
     nullable: bool
     """`bool` if field accepts None. defaults to `false`."""
+
+
+def _field(
+    type: type | None = None,
+    default: Any = ...,
+    help: str | None = None,
+    choices: list | None = None,
+    range: tuple[float, float] | None = None,
+    nullable: bool = False,
+) -> FieldSchema:
+    """
+    builds a `FieldSchema` entry with autocomplete support.
+
+    internal helper — not exported to the public API.
+    drops unset keys so the returned dict only contains
+    explicitly provided values.
+
+    params:
+    - `type`: expected python type.
+    - `default`: default value (sentinel `...` means unset).
+    - `help`: human-readable description.
+    - `choices`: allowed values, or None.
+    - `range`: numeric range as (min, max), or None.
+    - `nullable`: if field accepts None.
+
+    returns:
+    - `FieldSchema` type, ready to use as a `config_schema` value.
+    """
+    result: dict[str, Any] = {}
+    if type is not None:
+        result["type"] = type
+    if default is not ...:
+        result["default"] = default
+    if help is not None:
+        result["help"] = help
+    if choices is not None:
+        result["choices"] = choices
+    if range is not None:
+        result["range"] = range
+    if nullable:
+        result["nullable"] = nullable
+    return result  # type: ignore[return-value]

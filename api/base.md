@@ -27,7 +27,7 @@ from nameframe import __version__, registry, utils
 
 ### 2.1 全局 Registry 单例
 
-首先需要导入注册表。注册表是以实例的形式存在的。注册表的底层提供这样的接口：每种组件对应一个该类组件的注册表的全局单例，后续所有相关组件可直接从 `nameframe.registry` 导入，即实现注册或查找：
+首先需要导入注册表。注册表是以实例的形式存在的。注册表的底层提供这样的接口：每种组件对应一个该类组件的注册表的 **全局单例**，后续所有相关组件可直接从 `nameframe.registry` 导入，即实现注册或查找：
 
 ```python
 from nameframe.registry import model, dataset, loss, metric, ops, plugin
@@ -46,7 +46,7 @@ from nameframe.registry import model, dataset, loss, metric, ops, plugin
 
 ### 2.2 `Registry` 类
 
-注册表是组件系统的核心，管理变量名（`str`）到类（`type`）的映射。每个 `Registry` 实例允许创建命名空间，实现项目间/类型间的隔离。
+注册表是组件系统的核心，管理变组件名（`str`）到类（`type`）的映射。每个 `Registry` 实例允许创建命名空间，实现项目间/类型间的隔离。
 
 #### 构造
 
@@ -56,16 +56,20 @@ Registry(name: str, base_type: type | None = None)
 
 | 参数 | 类型 | 说明 |
 |:------:|:------:|:------:|
-| `name` | `str` | 注册表名称，用于错误消息 |
+| `name` | `str` | 组件名 |
 | `base_type` | `type \| None` | 可选，表示新的基类 |
 
 #### 注册组件
 
 三种方式都可注册组件：
 
-**1. 装饰器注册（推荐）**
+**1. 装饰器注册**
 
 ```python
+# 导入 model 全局单例
+from nameframe.registry import model
+
+# 调用 model 装饰器方法注册
 @model.register("my_vit")
 class MyViT(nn.Module):
     ...
@@ -135,10 +139,10 @@ model.list_all(namespace="proj_a")
 此外，还有一些魔法方法，例如注册表支持 `in` 关键字和 `len()` 方法：
 
 ```python
-# __contain__(name), bool
+# bool
 "my_vit" in model
 
-# __len()__, len of model registry
+# len of model registry
 model.len()
 ```
 
@@ -179,7 +183,7 @@ model.get("proj_b:resnet") # ResNetB
 
 ### 3.1 `BatchProtocol` 数据交互
 
-预处理管线、模型内部、损失、推理等各组件之间的数据通信没有约束，管理起来很乱。框架对各组件之间的数据通信规定了一些必须结构。该基本类型对所有组件之间传递数据的结构做约定：
+预处理管线、模型内部、损失、推理等各组件之间的数据通信没有约束，管理起来很乱。框架定义 `BatchProtocol` 作为组件数据交互的基本类型。该类对所有组件之间传递数据的结构做约定：
 
 ```python
 class BatchProtocol(Protocol):
@@ -315,11 +319,11 @@ class VisionTransformer(nn.Module):
         super().load_state_dict(state_dict, strict=strict)
 ```
 
-注意到 `VisionTransformer` 类没有显式声明自己继承自 `ModelProtocol`，但符合其结构格式，类型检查会将其视为满足 `ModelProtocol`，便可与其余组件和配置项交互。
+注意到 `VisionTransformer` 类并没有显式声明自己继承自 `ModelProtocol`，但符合其结构格式，类型检查会将其视为满足 `ModelProtocol`，便可与其余组件和配置项交互。
 
 ### 3.3 `config_schema` 和 `FieldSchema` 配置交互
 
-无论何种组件，都有诸多可配置项。可配置项的一端是最顶层的 `.yaml` 文件，面向用户；其另一面深入各组件内部，规定各组件的可配置项的元数据。上面见到的 `config_schema` 便是深入组件内部的一端。
+无论何种组件，都有诸多可配置项。可配置项的一端是最顶层的 `.yaml` 文件，面向用户；其另一面深入各组件内部，规定各组件可配置项的元数据。上面见到的 `config_schema` 便是深入组件内部的一端。
 
 各组件的数据类型 xxxProtocol 规定，在每个组件定义时，其内部都必须声明 `dict` 类型的 `config_schema` 变量，规定其所有可配置项元数据。例如：
 
@@ -347,7 +351,7 @@ class MyModel(nn.Module):
     }
 ```
 
-上面的 `config_schema` 字典，其每个值（`value`）都是一个 `FieldSchema`。可见 `FieldSchema` 对某项配置规定了具体细节，如 `"activation"` 的  `FieldSchema` 规定了可选的激活函数等。`FieldSchema` 的 `total=False` 字段允许只记录其中某些字段。
+上面的 `config_schema` 字典，其每个值（`value`）都是一个继承自 `TypedDict` 类型的 `FieldSchema`。该类负责规定一项配置的具体细节，如 `"activation"` 的  `FieldSchema` 规定了可选的激活函数等。`FieldSchema` 的 `total=False` 字段允许只记录其中某些字段。
 
 ```python
 class FieldSchema(TypedDict, total=False):
@@ -417,21 +421,3 @@ from nameframe.utils import set_seed, derive_seed, capture_env
 ```
 
 ---
-
-## 六、契约与兼容性
-
-以下接口被后续 Phase 依赖，修改需保持向后兼容：
-
-| 接口 | 要点 |
-|:----:|:-------:|
-| `Registry.register(name=None)` | 装饰器，`name` 可省，返回原类 |
-| `Registry.register_external(name, item)` | 第三方库类注册 |
-| `Registry.get(name)` | 支持命名空间 |
-| `Registry.list_all(ns)` | - |
-| `Registry.__contains__(name)` | `in` 关键字 |
-| `discover(directory)` | - |
-| `set_seed(seed)` | - |
-| `derive_seed(base, comp, rank)` | - |
-| `capture_env()` | - |
-| `BatchProtocol` | *“我们是因信称义的”* |
-| `FieldSchema` | *“我们是因信称义的”* |

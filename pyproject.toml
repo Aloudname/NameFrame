@@ -21,6 +21,9 @@ dev = [
     "pre-commit",
 ]
 
+[tool.setuptools.package-data]
+nameframe = ["py.typed"]
+
 [tool.pytest.ini_options]
 testpaths = ["nameframe/tests"]
 python_files = ["test_*.py"]
