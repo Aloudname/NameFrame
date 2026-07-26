@@ -3,7 +3,7 @@ repos:
     hooks:
       - id: pytest
         name: pytest (phase 1)
-        entry: /home/chenhaoran/BASE/anaconda3/envs/LoLA/bin/python -m pytest nameframe/tests/ -v
+        entry: /home/chenhaoran/BASE/anaconda3/envs/LoLA/bin/python -m pytest tests/ -v
         language: system
         pass_filenames: false
         always_run: true
