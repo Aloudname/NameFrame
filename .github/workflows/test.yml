@@ -52,18 +52,17 @@ jobs:
               pass
 
           # --- config ---
-          cfg = Config({'lr': 0.01, 'epochs': 10})
-          assert cfg.lr == 0.01
+          cfg = Config({'model': {'name': 'resnet50', 'layers': 12}})
+          assert cfg.model.name == 'resnet50'
           cfg.freeze()
           assert cfg.is_frozen
           try:
-              cfg.lr = 999
+              cfg.model.name = 'vit'
               assert False, 'should raise'
           except FrozenConfigError:
               pass
-
-          ns = cfg.get_namespace('')  # or another namespace
           assert isinstance(cfg.to_dict(), dict)
+          assert cfg.get_namespace('model') == {'name': 'resnet50', 'layers': 12}
 
           # --- schema validation ---
           from nameframe.utils.typing import FieldSchema
