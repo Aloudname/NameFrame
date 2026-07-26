@@ -24,7 +24,68 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install torch --index-url https://download.pytorch.org/whl/cpu
-          pip install numpy pytest
+          pip install numpy pyyaml
 
-      - name: Run tests
-        run: python -m pytest tests/ -v
+      - name: Smoke test
+        run: |
+          python -c "
+          import nameframe
+          from nameframe.registry import Registry, RegistryKeyError, model, dataset, loss, metric, ops, plugin
+          from nameframe.utils import set_seed, derive_seed, capture_env, BatchProtocol
+          from nameframe.config import Config, validate_schema, ConfigConflictError, FrozenConfigError
+
+          # --- registry ---
+          assert model.name == 'model'
+          assert dataset.name == 'dataset'
+
+          @model.register('__smoke_test__')
+          class _SmokeModel:
+              pass
+
+          assert '__smoke_test__' in model
+          assert model.get('__smoke_test__') is _SmokeModel
+
+          try:
+              model.get('nonexistent')
+              assert False, 'should raise'
+          except RegistryKeyError:
+              pass
+
+          # --- config ---
+          cfg = Config({'lr': 0.01, 'epochs': 10})
+          assert cfg.lr == 0.01
+          cfg.freeze()
+          assert cfg.is_frozen
+          try:
+              cfg.lr = 999
+              assert False, 'should raise'
+          except FrozenConfigError:
+              pass
+
+          ns = cfg.get_namespace('')  # or another namespace
+          assert isinstance(cfg.to_dict(), dict)
+
+          # --- schema validation ---
+          from nameframe.utils.typing import FieldSchema
+          schema: dict[str, FieldSchema] = {
+              'lr': {'type': float, 'default': 1e-3},
+          }
+          validate_schema({'lr': 0.01}, schema)
+          try:
+              validate_schema({}, {'lr': {'type': float}})
+              assert False, 'should raise'
+          except ConfigConflictError:
+              pass
+
+          # --- seed ---
+          set_seed(42)
+          s = derive_seed(42, 'test')
+          assert isinstance(s, int)
+
+          # --- env ---
+          env = capture_env()
+          assert 'python' in env
+          assert 'torch' in env
+
+          print('All smoke tests passed.')
+          "

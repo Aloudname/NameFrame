@@ -6,11 +6,8 @@ __pycache__/
 # docs
 docs/
 
-# test
+# all test directories (tests stay local, not in repo)
 tests/
-
-# package-internal test directory (tests belong at repo root)
-nameframe/tests/
 
 # pytest
 .pytest_cache/
