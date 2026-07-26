@@ -198,7 +198,7 @@ def _include_constructor(loader: _IncludeLoader, node: yaml.Node) -> Any:
     handles `!include path/to/file.yaml` in yaml configs.
 
     params:
-    - `loader`: `yaml.Loader` type.
+    - `loader`: `_IncludeLoader` type.
     - `node`: `yaml.Node` type of yaml node.
 
     returns:
