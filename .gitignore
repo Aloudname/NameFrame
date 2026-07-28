@@ -3,11 +3,11 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-# docs
-docs/
-
 # all test directories (tests stay local, not in repo)
 tests/
+
+# confidential docs
+docs/confidential/
 
 # pytest
 .pytest_cache/
