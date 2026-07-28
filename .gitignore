@@ -6,6 +6,9 @@ __pycache__/
 # all test directories (tests stay local, not in repo)
 tests/
 
+# mkdocs build output
+site/
+
 # confidential docs
 docs/confidential/
 
