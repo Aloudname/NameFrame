@@ -29,7 +29,7 @@ plugins:
   - search
 
 nav:
-  - Home: contents.md
+  - Home: index.md
   - API Reference:
     - nameframe.base: api/base.md
     - nameframe.config: api/config.md
