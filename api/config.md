@@ -28,161 +28,150 @@ from nameframe.config import (
 
 ## 二、`Config` 配置树
 
-从用户的角度看，无论是超参数、模型结构参数，还是各种各样的杂项参数，其唯一操作入口都是 `.yaml` 配置文件。为了分门别类地将不同去向的参数注入其应有的位置，框架底层将配置项抽象成了一个树。`Config` 是整条管线的唯一入口和唯一出口。
+从用户的角度看，无论是超参数、模型结构参数还是各种杂项参数，这些不同类别的参数应该由统一的入口管理，也就是 `.yaml` 配置文件。最终，这些参数会散开到各个组件中。为描述这一行为，配置系统被抽象成了一个树型结构 `Config`，它是配置管线的 **主要** 入口和唯一出口。
 
-### 2.1 三步生命周期
+### 2.1 配置入口
 
+#### 2.1.1 文件入口 `.yaml`
+
+用户在 `.yaml` 文件中可配置两种格式的参数。大多情况，参数是确定的，直接用键值对配置；当需要围绕某一范围动态生成参数时，可用占位符 `${search: ...}` 赋值。另外，还支持使用 `!include` 指令，通过相对路径引用其他 `.yaml` 文件。例如：
+
+```yaml
+# exp.yaml
+
+# 引用
+!include model/resnet50.yaml
+
+model:
+  name: resnet50
+training:
+  # 占位赋值
+  lr: "${search: loguniform(1e-5, 1e-2)}"
+  weight_decay: "${search: uniform(1e-5, 1e-2)}"
+  epochs: 100
 ```
-from_yaml()  →  resolve()  →  freeze()
-   加载          解析          冻结
-   YAML         ${search:...}  只读属性树
+
+> **[BUG]** 由于 pyyaml 的节点类型判断在 tag 处理之前，`!include` 不可与 `<<:` YAML 合并键组合使用。
+
+#### 2.1.2 CLI 入口
+
+为方便调试，用户可通过命令行参数 **暂时** 遮盖 `.yaml` 文件中的配置。例如：
+
+```bash
+nfm train --model.num_layers 50 --training.lr "${search: loguniform(1e-5, 1e-2)}"
 ```
 
-三者必须**严格按顺序**调用。跳过 `resolve()` 直接 `freeze()`，`${search:...}` 不会被转换为 `SearchSpace`；跳过 `freeze()` 直接注入组件，配置可能在运行时被意外改写。
+这种遮盖是一次性的，并不会修改原始 `.yaml` 文件。
+
+### 2.2 `Config` 接口
+
+`Config` 配置树提供一些接口，用于管理参数的加载、解析等流程。
+
+#### 2.2.1 配置加载
+
+首先调用 `Config.from_yaml()` 方法，将来自 `.yaml` 和 CLI 的配置合并，加载为 `Config` 对象。该方法不需提前实例化 `Config` 便可直接调用：
+
+```python
+@classmethod
+def from_yaml(cls, path: Path, overrides: dict | None = None) -> Config
+```
+
+`overrides` 参数用于在加载配置时遮盖 `.yaml` 文件中的值。这一过程由 CLI 参数触发并自动传入，不需手动操作。例如：
 
 ```python
 from pathlib import Path
 from nameframe.config import Config
 
-# 第一步：加载 YAML
 config = Config.from_yaml(Path("exp.yaml"))
 
-# 第二步：解析变量
-config.resolve()
-
-# 第三步：冻结
-config.freeze()
-
-# 之后 config 是只读的，可通过属性访问
-print(config.model.name)       # → "resnet50"
-print(config.training.lr)      # → 0.001
-```
-
-### 2.2 构造
-
-```python
-Config(data: dict, source_path: Path | None = None)
-```
-
-| 参数 | 类型 | 说明 |
-|:------:|:------:|:------:|
-| `data` | `dict` | 裸配置字典，可手工传入（测试用） |
-| `source_path` | `Path \| None` | 文件来源，仅供诊断和相对路径解析 |
-
-多数情况下不直接构造，而是走 `from_yaml()`。
-
-### 2.3 `from_yaml` 加载
-
-```python
-@classmethod
-def from_yaml(cls, path: Path, overrides: dict | None = None) -> Config:
-```
-
-| 参数 | 类型 | 说明 |
-|:------:|:------:|:------:|
-| `path` | `Path` | `.yaml` 文件路径 |
-| `overrides` | `dict \| None` | CLI 传入的覆盖值，深度合并到加载后的配置 |
-
-支持 `!include` 指令，被引用的文件会被整体解析并替换当前节点。`!include` 使用相对路径（相对于当前 YAML 文件所在目录），并有循环引用检测。
-
-示例 `exp.yaml`：
-
-```yaml
-model: !include model/resnet50.yaml
-training:
-  lr: 1e-3
-  epochs: 100
-  optimizer:
-    type: adam
-    weight_decay: 1e-4
-```
-
-```python
-# 基础加载
-config = Config.from_yaml(Path("exp.yaml"))
-
-# 带 CLI 覆盖
+# CLI 遮盖
 config = Config.from_yaml(
     Path("exp.yaml"),
     overrides={"training": {"lr": 5e-4}},
 )
-# 最终 training.lr 是 5e-4，其余 training 字段不变
 ```
 
-> `!include` 不可与 `<<:` YAML 合并键组合使用（PyYAML 的节点类型判断在 tag 处理器之前）。需要合并语义时，把公共部分抽到一个文件后整体 include。
+#### 2.2.2 配置解析
 
-### 2.4 属性访问
-
-加载后的 `Config` 对象像普通 Python 对象一样通过 `.` 访问，嵌套字典自动转为嵌套属性：
+对配置树实例中的 `${search: ...}` 占位符，需调用实例的 `resolve()` 方法将其解析为可进行参数搜索的对象。该方法对配置树实例进行 **原地修改**，将占位符替换为一个方便搜索的 `SearchSpace` 实例。
 
 ```python
-config.model.name          # → "resnet50"
-config.training.optimizer.type  # → "adam"
+def resolve(self) -> None
+```
+
+例如：
+
+```python
+# exp.yaml
+# training:
+#   lr: "${search: loguniform(1e-5, 1e-2)}"
+
+# usage
+cfg = Config.from_yaml(Path("exp.yaml"))
+cfg.resolve()
+type(cfg.training.lr)   # -> <class 'SearchSpace'>
+```
+
+#### 2.2.3 配置冻结
+
+框架不允许一切在运行时修改配置树的行为。解析完毕后，调用实例的 `freeze()` 方法冻结整棵配置树，将其变为只读对象。冻结后任何写入尝试都会抛出 `FrozenConfigError`。
+ 
+```python
+def freeze(self) -> None
+```
+
+框架的编排层通过 `npm train` 封装了配置加载、解析、冻结这一管线，用户一般无需实现该流程。若需自己编排配置流程，三者必须 **严格按顺序调用**。例如：
+
+```python
+from pathlib import Path
+from nameframe.config import Config
+
+cfg = Config.from_yaml(Path("exp.yaml"), overrides={"training": {"lr": 5e-4}})
+cfg.resolve()
+cfg.freeze()
+
+cfg.model.name = "vit" # FrozenConfigError
+```
+
+#### 2.2.4 属性访问
+
+加载后的 `Config` 对象像普通 Python 对象一样通过 `.` 访问，嵌套字典会自动转为嵌套属性：
+
+```python
+config.model.name          # -> "resnet50"
+config.training.optimizer.type  # -> "adam"
 ```
 
 支持 `in` 关键字和 `len()`：
 
 ```python
-"lr" in config.training    # → True
-len(config.training)       # → 4（该命名空间下字段数）
+"lr" in config.training    # -> True
+len(config.training)       # -> 4，命名空间拥有字段数
 ```
 
-### 2.5 `resolve` 解析变量
+#### 2.2.5 其他方法
 
-```python
-def resolve(self) -> None:
-```
-
-将配置树中的所有 `${search: ...}` 占位符转换为 `SearchSpace` 对象。操作为**原地修改**，调用后 `config.training.lr` 原本若是 `"${search: loguniform(1e-5, 1e-2)}"`，将变为 `SearchSpace(expression="loguniform(1e-5, 1e-2)")`。
-
-```python
-# exp.yaml 中：
-# training:
-#   lr: "${search: loguniform(1e-5, 1e-2)}"
-
-config = Config.from_yaml(Path("exp.yaml"))
-config.resolve()
-type(config.training.lr)   # → <class 'SearchSpace'>
-```
-
-### 2.6 `freeze` 冻结
-
-```python
-def freeze(self) -> None:
-```
-
-递归冻结整棵配置树。冻结后任何写入尝试都会抛出 `FrozenConfigError`，并指明违规代码的文件和行号。
-
-```python
-config.freeze()
-config.model.name = "vit"  # 抛出 FrozenConfigError
-```
-
-### 2.7 `is_frozen` 状态
+`Config` 类提供一些内置方法或属性来管理配置的状态和操作。首先是 `is_frozen` 属性，用于检查配置树是否已被冻结：
 
 ```python
 @property
-def is_frozen(self) -> bool:
+def is_frozen(self) -> bool
 ```
 
 ```python
 config = Config({"lr": 0.01})
-config.is_frozen   # → False
+config.is_frozen   # -> False
 config.freeze()
-config.is_frozen   # → True
+config.is_frozen   # -> True
 ```
 
-### 2.8 `get_namespace` 提取子命名空间
+`get_namespace` 方法用于获取配置树中某个命名空间的内容，返回一个纯 `dict`：
 
 ```python
-def get_namespace(self, ns: str) -> dict:
+def get_namespace(self, ns: str) -> dict
 ```
 
-| 参数 | 类型 | 说明 |
-|:------:|:------:|:------:|
-| `ns` | `str` | 点号分隔的路径，如 `"training.optimizer"` |
-
-返回纯 `dict`，用于注入组件构造函数（`**kwargs`）。组件实例化不需要另一层对象包装，`dict` 更轻量也更通用。
+该方法用于获取关键词参数字典，注入各组件的构造函数（`**kwargs`）。
 
 ```python
 # exp.yaml:
@@ -195,42 +184,21 @@ params = config.get_namespace("model.backbone")
 # → {"name": "resnet50", "pretrained": True}
 ```
 
-### 2.9 `to_dict` 导出
+`to_dict` 方法可将配置树整个导出为 `dict`，用于 checkpoint 快照或序列化。修改返回的字典不会影响原始 `Config` 对象。
 
 ```python
-def to_dict(self) -> dict:
+def to_dict(self) -> dict
 ```
-
-返回整棵配置树的深拷贝纯 `dict`，供 checkpoint 快照或序列化使用。修改返回的字典不影响原 `Config`。
 
 ---
 
 ## 三、`validate_schema` 配置校验
 
-配置的值必须通过 `FieldSchema` 规则校验，才能在组件实例化前拦截错误。
+配置文件被实例化为 `Config` 对象后，就要准备注入各种组件类，构造组件实例了。不过在此之前，需要检查某些参数配置是否合理。我们不希望传入的配置项不符合该种组件的规定，或者参数的值太离谱。[`api/base.md`](./base.md) 介绍了所有类型组件都有的属性 `FieldSchema`，它正是用于规范传入配置项的。将 `Config` 对象的参数与 `FieldSchema` 进行校验，确保在参数注入组件前拦截 **字段**、**类型** 和 **值域** 的错误。下面的方法封装了校验流程，失败抛出 `ConfigConflictError`。
 
 ```python
-def validate_schema(params: dict, schema: dict[str, FieldSchema]) -> None:
+def validate_schema(params: dict, schema: dict[str, FieldSchema]) -> None
 ```
-
-| 参数 | 类型 | 说明 |
-|:------:|:------:|:------:|
-| `params` | `dict` | 实际参数值 |
-| `schema` | `dict[str, FieldSchema]` | 参数声明 |
-
-### 3.1 五项校验规则
-
-`validate_schema` 按优先级依次检查，**一次报告所有错误**而非遇到第一个就抛：
-
-| 顺序 | 规则 | 违反时行为 |
-|:---:|------|------|
-| 1 | 未知字段 | 用编辑距离建议 "你是不是想写 X？"；距离太远则列出全部可用字段 |
-| 2 | 缺少必填字段 | 字段无 `default` 且 `params` 未提供 |
-| 3 | None 合法性 | 字段 `nullable` 不为 `True` 时不可传入 `None` |
-| 4 | 类型匹配 | `isinstance(value, declared_type)` 检查 |
-| 5 | 值范围 | `choices` 枚举列表匹配或 `range` 数值区间匹配 |
-
-### 3.2 使用示例
 
 假设某模型定义了 `config_schema`：
 
@@ -253,7 +221,7 @@ class MyModel(nn.Module):
 校验流程：
 
 ```python
-from nameframe.config import validate_schema, ConfigConflictError
+from nameframe.config import validate_schema
 from nameframe.utils.typing import FieldSchema
 
 schema: dict[str, FieldSchema] = {
@@ -261,82 +229,47 @@ schema: dict[str, FieldSchema] = {
     "activation": {"type": str, "choices": ["relu", "gelu", "silu"]},
 }
 
-# 正常通过
+# 正常
 validate_schema({"hidden_dim": 256, "activation": "gelu"}, schema)
 
-# 字段拼错：建议 "activation"
-try:
-    validate_schema({"hidden_dim": 256, "activatoin": "gelu"}, schema)
-except ConfigConflictError as e:
-    print(e.errors)
-    # → ["unknown field 'activatoin', did you mean 'activation'?"]
+# 字段错误
+validate_schema({"hidden_dim": 256, "aCTivaWion": "gelu"}, schema)
+# -> "unknown field 'aCTivaWion', did you mean 'activation'?"
 
-# 值超出范围 + 类型不对
-try:
-    validate_schema({"hidden_dim": "big", "activation": "tanh"}, schema)
-except ConfigConflictError as e:
-    print(e.errors)
-    # → [
-    #     "field 'hidden_dim' expects int, got str (value='big').",
-    #     "field 'activation' has value 'tanh', but must be one of ['relu', 'gelu', 'silu'].",
-    # ]
-```
-
-### 3.3 `ConfigConflictError` 异常
-
-```python
-class ConfigConflictError(ValueError):
-    errors: list[str]  # 所有错误消息，可逐条展示给用户
+# 值域、类型错误
+validate_schema({"hidden_dim": "big", "activation": "tanh"}, schema)
+# -> [
+#     "field 'hidden_dim' expects int, got str (value='big').",
+#     "field 'activation' has value 'tanh', but must be one of ['relu', 'gelu', 'silu'].",
+# ]
 ```
 
 ---
 
-## 四、`FrozenConfigError` 冻结保护
+## 四、`SearchSpace` 搜索空间
 
-`Config.freeze()` 调用后，任何对配置树中任意节点的属性赋值都会抛出该异常，并精确定位违规代码的位置。
-
-```python
-class FrozenConfigError(Exception):
-    key: str       # 被尝试修改的字段名
-    location: str  # 违规代码位置，格式 "path/to/file.py:line"
-```
-
-### 使用场景
-
-```python
-config = Config.from_yaml(Path("exp.yaml"))
-config.resolve()
-config.freeze()
-
-# 训练循环中某个回调意外尝试修改配置
-def bad_callback(cfg):
-    cfg.training.lr = 999  # → FrozenConfigError:
-    #   "attempted to change frozen 'lr' at my_callbacks.py:42"
-```
-
----
-
-## 五、`SearchSpace` 搜索空间
-
-`resolver.py` 内部使用的一个轻量 dataclass，供 Phase 8（超参搜索 CLI）消费：
+前面说到，`Config.resolve()` 方法将 `${search: ...}` 占位符解析为一个 `SearchSpace` 类型的实例。`SearchSpace` 是一个轻量的数据类型，供 CLI 编排层的超参搜索使用：
 
 ```python
 @dataclass
 class SearchSpace:
-    expression: str  # "${search: ...}" 内部的原始表达式
+    expression: str  # ${search: ...} 内的原始表达式
 ```
 
-虽然目前未从 `__init__.py` 导出为公共 API，但它是 `resolve()` 的输出产物，后续 Phase 的 sweep 引擎会直接消费它。
+方法尚未在 `config/__init__.py` 开放，但后续 CLI 编排层的 sweep 引擎会直接使用它。
 
 ---
 
-## 六、完整管线示例
+## 五、应用例
 
-一个端到端流程，串起 Phase 1 的注册表和 Phase 2 的配置系统：
+我们用一个端到端示例，展示如何结合底层的注册表系统和配置系统。
+
+首先定义配置文件。`exp.yaml` 负责实验配置，`model/vit_base.yaml` 负责模型配置，`loss/cross_entropy.yaml` 负责损失函数配置。
 
 ```yaml
-# exp.yaml
+# ./exp.yaml
 model: !include model/vit_base.yaml
+loss: !include loss/cross_entropy.yaml
 training:
   lr: "${search: loguniform(1e-5, 1e-2)}"
   epochs: 100
@@ -346,7 +279,7 @@ training:
 ```
 
 ```yaml
-# model/vit_base.yaml
+# ./model/vit_base.yaml
 name: vit_base
 image_size: 224
 patch_size: 16
@@ -356,74 +289,81 @@ heads: 12
 dropout: 0.1
 ```
 
+```yaml
+# ./loss/cross_entropy.yaml
+name: cross_entropy
+weight: 1.0
+```
+
+然后定义 Python 端：
+
 ```python
 from pathlib import Path
-from nameframe.config import Config, validate_schema, ConfigConflictError
-from nameframe.registry import model
+from nameframe.config import Config, validate_schema
+from nameframe.registry import model, loss
+import torch.nn as nn
 
-# 1. 加载 YAML
+# 加载、校验配置
 config = Config.from_yaml(
     Path("exp.yaml"),
     overrides={"training": {"epochs": 200}},
 )
-
-# 2. 解析搜索空间
 config.resolve()
-# config.training.lr 现在是 SearchSpace(expression="loguniform(1e-5, 1e-2)")
-
-# 3. 冻结
 config.freeze()
 
-# 4. 提取配置并校验
+# 定义、注册组件
+@model.register("vit_base")
+class VisionTransformer(nn.Module):
+    config_schema = {
+        "image_size": {"type": int, "default": 224},
+        "patch_size": {"type": int, "default": 16},
+        "dim": {"type": int, "default": 768},
+        "depth": {"type": int, "default": 12},
+        "heads": {"type": int, "default": 12},
+        "dropout": {"type": float, "default": 0.1},
+    }
+    def __init__(self, ...):
+        super().__init__()
+        ...
+
+@loss.register("cross_entropy")
+class CrossEntropyLoss(nn.Module):
+    config_schema = {
+        "weight": {"type": float, "default": 1.0},
+    }
+    def __init__(self, ...):
+        super().__init__()
+        ...
+
+# 参数校验
 model_params = config.get_namespace("model")
+loss_params = config.get_namespace("loss")
+
 model_cls = model.get(model_params["name"])
-try:
-    validate_schema(model_params, model_cls.config_schema)
-except ConfigConflictError as e:
-    print(f"配置冲突:\n" + "\n".join(f"  - {err}" for err in e.errors))
-    raise
+loss_cls = loss.get(loss_params["name"])
 
-# 5. 实例化
+validate_schema(model_params, model_cls.config_schema)
+validate_schema(loss_params, loss_cls.config_schema)
+
+# 组件实例化
 vit = model_cls(**model_params)
+cross_entropy = loss_cls(**loss_params)
 
-# 6. 快照
-checkpoint_snapshot = config.to_dict()
+# 配置快照
+checkpoint = config.to_dict()
 ```
 
 ---
 
-## 七、导入速查
+## 六、导入
 
 ```python
-# 配置系统
 from nameframe.config import (
     Config,
     ConfigConflictError,
     FrozenConfigError,
     validate_schema,
 )
-
-# 配合 Phase 1 使用
-from nameframe.registry import model
-from nameframe.utils.typing import FieldSchema, _field
 ```
 
 ---
-
-## 八、契约与兼容性
-
-以下接口被后续 Phase 依赖，修改需保持向后兼容：
-
-| 接口 | 依赖 Phase | 契约要点 |
-|:------|:---:|:------|
-| `Config.from_yaml(path, overrides)` | 8 (CLI) | `overrides` 深度合并，支持 `!include` |
-| `Config.resolve()` | 8 (CLI) | 将 `${search:...}` 转为 `SearchSpace` |
-| `Config.freeze()` | 8 (CLI) | 递归冻结，冻结后写抛 `FrozenConfigError` |
-| `Config.is_frozen` | 3, 6 | property，返回 `bool` |
-| `Config.get_namespace(ns)` | 3 (components) | 点号路径，返回纯 `dict` |
-| `Config.to_dict()` | 6, 13 | 返回纯 `dict` 深拷贝 |
-| `Config.<attr>` 属性访问 | 6, 8 | 冻结后只读 |
-| `validate_schema(params, schema)` | 3 (components) | 五项校验，失败抛 `ConfigConflictError` |
-| `ConfigConflictError` | 3, 6, 8 | 异常携带 `errors: list[str]` |
-| `FrozenConfigError` | 3, 6, 8 | 异常携带 `key` + `location` |
-| `SearchSpace` | 8 (sweep) | dataclass, `expression: str` |
