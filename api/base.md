@@ -7,16 +7,17 @@
 
 ## 一、全局入口
 
-包的顶层提供三个属性：
+包的顶层提供几个属性：
 
 | 符号 | 类型 | 说明 |
-|------|------|------|
+|:------:|:------:|:------:|
 | `__version__` | `str` | 版本号 |
 | `registry` | module | 组件注册 |
-| `utils` | module | 通信协议和种子、环境等零碎小工具 |
+| `utils` | module | 零碎小工具 |
+| `config` | module | 配置系统 |
 
 ```python
-from nameframe import __version__, registry, utils
+from nameframe import __version__, registry, utils, config
 ```
 
 ---
@@ -27,7 +28,7 @@ from nameframe import __version__, registry, utils
 
 ### 2.1 全局 Registry 单例
 
-首先需要导入注册表。注册表是以实例的形式存在的。注册表的底层提供这样的接口：每种组件对应一个该类组件的注册表的 **全局单例**，后续所有相关组件可直接从 `nameframe.registry` 导入，即实现注册或查找：
+首先需要导入注册表。注册表是以实例的形式存在的。注册表的底层提供这样的接口：每种组件（模型、损失等等）对应一个该类组件的 **全局单例** 注册表。后续所有相关组件可直接从 `nameframe.registry` 导入，即实现注册或查找。
 
 ```python
 from nameframe.registry import model, dataset, loss, metric, ops, plugin
@@ -46,7 +47,7 @@ from nameframe.registry import model, dataset, loss, metric, ops, plugin
 
 ### 2.2 `Registry` 类
 
-注册表是组件系统的核心，管理变组件名（`str`）到类（`type`）的映射。每个 `Registry` 实例允许创建命名空间，实现项目间/类型间的隔离。
+注册表是组件系统的核心，管理组件名（`str`）到类（`type`）的映射。每个 `Registry` 实例允许创建命名空间，实现项目间/类型间的隔离。`base_type` 是可选参数，表示注册一个基类。表中所有注册的组件必须是该类型的子类，否则抛出 `TypeError`。
 
 #### 构造
 
@@ -54,33 +55,28 @@ from nameframe.registry import model, dataset, loss, metric, ops, plugin
 Registry(name: str, base_type: type | None = None)
 ```
 
-| 参数 | 类型 | 说明 |
-|:------:|:------:|:------:|
-| `name` | `str` | 组件名 |
-| `base_type` | `type \| None` | 可选，表示新的基类 |
-
 #### 注册组件
 
 三种方式都可注册组件：
 
 **1. 装饰器注册**
 
+python 提供了一种方便的 [装饰器语法糖](https://cloud.tencent.com/developer/article/2541917)。注册表实例的提供了一个方法 `register(name: str | None = None) -> Callable`，就是一个装饰器包裹的工厂函数。
+
 ```python
-# 导入 model 全局单例
 from nameframe.registry import model
 
-# 调用 model 装饰器方法注册
 @model.register("my_vit")
 class MyViT(nn.Module):
     ...
 
-# 缺省时自动补全: MyViT -> "my_vit"
+# 缺省时: MyViT -> "my_vit"
 @model.register()  
 class MyViT(nn.Module):
     ...
 ```
 
-`register(name: str | None = None) -> Callable` 是一个装饰器工厂。`name` 为 `None` 时，自动将 CamelCase 格式的类名转换为 snake_case 作为 `name`（键名）。返回的装饰器不侵入原类，注册后原样返回。这么好的方法，建议多用。
+参数 `name` 可以缺省。当其为 `None` 时，自动将 CamelCase 格式的类名转换为 snake_case 传入。返回的装饰器不侵入原类，注册后原样返回。这么好的方法，建议多用。
 
 **2. 函数注册**
 

@@ -1,0 +1,35 @@
+site_name: NameFrame Documentation
+site_description: Easy Deep Learning Framework.
+site_author: Aloudname
+repo_url: https://github.com/Aloudname/NameFrame
+
+theme:
+  name: material
+  language: en
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: switch_dark_mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: switch_light_mode
+  features:
+    - navigation.sections
+    - navigation.expand
+    - search.highlight
+    - content.code.copy
+
+plugins:
+  - search
+
+nav:
+  - Home: contents.md
+  - API Reference:
+    - nameframe.base: api/base.md
+    - nameframe.config: api/config.md
