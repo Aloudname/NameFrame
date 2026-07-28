@@ -1,18 +1,4 @@
-# NameFrame
+## API 文档
 
-A PyTorch-based deep learning framework with swappable components.
-
-## Getting Started
-
-```python
-from nameframe.registry import model
-
-@model.register("my_model")
-class MyModel:
-    ...
-```
-
-## API Reference
-
-- [Base API](api/base.md) — registry, protocols, seed & env
-- [Config API](api/config.md) — configuration system
+- [基础层 API](api/base.md)：组件注册、数据协议
+- [Config API](api/config.md)：配置系统
