@@ -109,7 +109,7 @@ def resolve(self) -> None
 # usage
 cfg = Config.from_yaml(Path("exp.yaml"))
 cfg.resolve()
-type(cfg.training.lr)   # -> <class 'SearchSpace'>
+type(cfg.training.lr)  # -> <class 'SearchSpace'>
 ```
 
 #### 2.2.3 配置冻结
@@ -120,7 +120,7 @@ type(cfg.training.lr)   # -> <class 'SearchSpace'>
 def freeze(self) -> None
 ```
 
-框架的编排层通过 `npm train` 封装了配置加载、解析、冻结这一管线，用户一般无需实现该流程。若需自己编排配置流程，三者必须 **严格按顺序调用**。例如：
+框架的编排层通过 `nfm train` 封装了配置加载、解析、冻结这一管线，用户一般无需实现该流程。若需自己编排配置流程，三者必须 **严格按顺序调用**。例如：
 
 ```python
 from pathlib import Path
@@ -130,7 +130,7 @@ cfg = Config.from_yaml(Path("exp.yaml"), overrides={"training": {"lr": 5e-4}})
 cfg.resolve()
 cfg.freeze()
 
-cfg.model.name = "vit" # FrozenConfigError
+cfg.model.name = "vit"  # FrozenConfigError
 ```
 
 #### 2.2.4 属性访问
@@ -138,15 +138,15 @@ cfg.model.name = "vit" # FrozenConfigError
 加载后的 `Config` 对象像普通 Python 对象一样通过 `.` 访问，嵌套字典会自动转为嵌套属性：
 
 ```python
-config.model.name          # -> "resnet50"
+config.model.name  # -> "resnet50"
 config.training.optimizer.type  # -> "adam"
 ```
 
 支持 `in` 关键字和 `len()`：
 
 ```python
-"lr" in config.training    # -> True
-len(config.training)       # -> 4，命名空间拥有字段数
+"lr" in config.training  # -> True
+len(config.training)  # -> 4，命名空间拥有字段数
 ```
 
 #### 2.2.5 其他方法
@@ -160,9 +160,9 @@ def is_frozen(self) -> bool
 
 ```python
 config = Config({"lr": 0.01})
-config.is_frozen   # -> False
+config.is_frozen  # -> False
 config.freeze()
-config.is_frozen   # -> True
+config.is_frozen  # -> True
 ```
 
 `get_namespace` 方法用于获取配置树中某个命名空间的内容，返回一个纯 `dict`：

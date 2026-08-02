@@ -19,7 +19,7 @@ from torch.nn import Parameter
 
 
 class BatchProtocol(Protocol):
-    """protocol for batch data objects passed between components."""
+    """protocol for batch data objects between components."""
 
     data: Tensor
     """the model input `torch.Tensor`."""
@@ -29,7 +29,7 @@ class BatchProtocol(Protocol):
     """the target tensor, or `None` for unsupervised tasks."""
 
     meta: dict
-    """optional metadata `dict` for auxiliary information."""
+    """optional metadata `dict` for useful info."""
 
 
 class ModelProtocol(Protocol):
@@ -151,6 +151,10 @@ class DatasetProtocol(Protocol):
 
     def __getitem__(self, index: int) -> BatchProtocol:
         """returns a single data item as a BatchProtocol."""
+        ...
+
+    def __getitems__(self, indices: list[int]) -> list[BatchProtocol]:
+        """returns multiple data items as a list of BatchProtocol."""
         ...
 
     def __len__(self) -> int:
