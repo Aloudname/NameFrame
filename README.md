@@ -22,6 +22,6 @@
 
 ## API 文档
 
-项目每层都提供一些 API，以及相关语法和应用例。要查阅每层的 API，跳转至 [API 文档](docs/index.md)。
+项目每层都提供一些 API，以及相关语法和应用例。要查阅每层的 API，跳转至 [本地 API 文档](docs/index.md) 或 [ReadTheDocs API 文档](https://nameframe.readthedocs.io/zh-cn/latest/)。
 
 ---
