@@ -38,7 +38,8 @@ def _get_caller_location() -> str:
 
     for frame in traceback.extract_stack():
         filename = frame.filename.replace("\\", "/")
-        if config_dir not in filename:
+        # skip config internals and non-file frames (e.g. <frozen runpy>)
+        if config_dir not in filename and not filename.startswith("<"):
             return f"{filename}:{frame.lineno}"
 
     return "<unknown location>"

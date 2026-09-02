@@ -33,3 +33,4 @@ nav:
   - API Reference:
     - nameframe.base: api/base.md
     - nameframe.config: api/config.md
+    - nameframe.components: api/components.md
