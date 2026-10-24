@@ -23,15 +23,13 @@ def capture_env() -> dict:
     """
     cuda_version: str
     if torch.cuda.is_available():
-        cuda_version = torch.version.cuda or "unknown" # type: ignore
+        cuda_version = torch.version.cuda or "unknown"  # type: ignore
     else:
         cuda_version = "none"
 
     cudnn_version: str
-    try:
-        cudnn_version = str(torch.backends.cudnn.version())
-    except AttributeError:
-        cudnn_version = "none"
+    version = torch.backends.cudnn.version() if torch.cuda.is_available() else None
+    cudnn_version = str(version) if version is not None else "none"
 
     return {
         "python": sys.version.split()[0],

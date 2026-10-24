@@ -3,17 +3,12 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-# all test directories (tests stay local, not in repo)
-tests/
-
 # mkdocs build output
 site/
 
-# confidential docs
-docs/confidential/
-
-# pytest
+# test / lint caches
 .pytest_cache/
+.ruff_cache/
 
 # mypy
 .mypy_cache/
@@ -34,9 +29,10 @@ build/
 eggs/
 *.egg
 
-# IDE / editor
+# IDE / editor / local agent settings
 .vscode/
 .idea/
+.claude/
 *.swp
 *.swo
 *~
@@ -54,3 +50,8 @@ htmlcov/
 
 # OS
 Thumbs.db
+
+# local-only development files, not published
+tests/
+tools/
+examples/

@@ -1,0 +1,9 @@
+include mkdocs.yml requirements-docs.txt CHANGELOG.md
+include .pre-commit-config.yaml .readthedocs.yaml
+recursive-include .github *.yml
+recursive-include docs *.md
+# keep local-only development directories out of the sdist
+prune tests
+prune tools
+prune examples
+global-exclude *.py[cod]

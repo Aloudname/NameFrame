@@ -1,19 +1,17 @@
-"""
-config system.
-
-provides config objects with yaml loading, schema validation,
-namespace extraction, and variable resolution.
-the three-step pattern from_yaml() to resolve() to freeze(),
-is the dataflow entry point for all pipelines.
-"""
+"""YAML loading, detached configuration snapshots and validation."""
 
 from nameframe.config.freezer import FrozenConfigError
 from nameframe.config.loader import Config
-from nameframe.config.schema import ConfigConflictError, validate_schema
+from nameframe.config.schema import (
+    ConfigConflictError,
+    validate_schema,
+    validate_schema_definition,
+)
 
 __all__ = [
     "Config",
     "ConfigConflictError",
     "FrozenConfigError",
     "validate_schema",
+    "validate_schema_definition",
 ]

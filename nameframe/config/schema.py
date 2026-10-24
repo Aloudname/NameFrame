@@ -6,6 +6,10 @@ compares actual param dicts with `FieldSchema`.
 
 from __future__ import annotations
 
+import math
+from collections.abc import Mapping
+from typing import Any
+
 from nameframe.utils.typing import FieldSchema
 
 
@@ -21,6 +25,106 @@ class ConfigConflictError(ValueError):
         self.errors = errors
         msg = "config conflicts:\n" + "\n".join(f"  - {e}" for e in errors)
         super().__init__(msg)
+
+
+def validate_schema_definition(schema: dict[str, FieldSchema]) -> None:
+    """Reject malformed field definitions and invalid defaults before use."""
+    if not isinstance(schema, Mapping):
+        raise ConfigConflictError(["schema must be a mapping with string keys."])
+    errors: list[str] = []
+    allowed = {"type", "default", "help", "choices", "range", "nullable"}
+    for key, field in schema.items():
+        prefix = f"schema field {key!r}"
+        if not isinstance(key, str):
+            errors.append(f"{prefix} must have a string name.")
+            continue
+        if not isinstance(field, Mapping):
+            errors.append(f"{prefix} must be a mapping.")
+            continue
+        field_errors: list[str] = []
+        unknown = set(field) - allowed
+        if unknown:
+            field_errors.append(
+                f"{prefix} has unknown rules: {sorted(map(repr, unknown))}."
+            )
+        declared_type = field.get("type")
+        if declared_type is not None:
+            if not isinstance(declared_type, type):
+                field_errors.append(f"{prefix} type must be a Python runtime type.")
+            else:
+                try:
+                    isinstance(None, declared_type)
+                except TypeError:
+                    field_errors.append(
+                        f"{prefix} type cannot be used for runtime validation."
+                    )
+        if "nullable" in field and not isinstance(field["nullable"], bool):
+            field_errors.append(f"{prefix} nullable must be a bool.")
+        if "help" in field and not isinstance(field["help"], str):
+            field_errors.append(f"{prefix} help must be a string.")
+        choices = field.get("choices")
+        if choices is not None and not isinstance(choices, list):
+            field_errors.append(f"{prefix} choices must be a list or None.")
+        bounds = field.get("range")
+        if bounds is not None:
+            if (
+                not isinstance(bounds, (list, tuple))
+                or len(bounds) != 2
+                or any(
+                    isinstance(bound, bool)
+                    or not isinstance(bound, (int, float))
+                    or (isinstance(bound, float) and math.isnan(bound))
+                    for bound in bounds
+                )
+            ):
+                field_errors.append(
+                    f"{prefix} range needs two numeric, non-NaN bounds."
+                )
+            elif bounds[0] > bounds[1]:
+                field_errors.append(f"{prefix} range lower bound exceeds upper bound.")
+            if declared_type is not None and declared_type not in (int, float):
+                field_errors.append(f"{prefix} range requires int or float type.")
+        errors.extend(field_errors)
+        if not field_errors and "default" in field:
+            errors.extend(_value_errors(f"{key} (default)", field["default"], field))
+    if errors:
+        raise ConfigConflictError(errors)
+
+
+def _value_errors(key: str, value: Any, field: FieldSchema) -> list[str]:
+    """Check one value after its field definition has been validated."""
+    if value is None:
+        return (
+            []
+            if field.get("nullable", False)
+            else [f"field '{key}' does not allow None."]
+        )
+    declared_type = field.get("type")
+    if declared_type is not None and (
+        not isinstance(value, declared_type)
+        or (declared_type in (int, float) and isinstance(value, bool))
+    ):
+        return [
+            f"field '{key}' expects {declared_type.__name__}, "
+            f"got {type(value).__name__} (value={value!r})."
+        ]
+    if isinstance(value, float) and not math.isfinite(value):
+        return [f"field '{key}' must be finite, got {value!r}."]
+    errors: list[str] = []
+    choices = field.get("choices")
+    if choices is not None and value not in choices:
+        errors.append(
+            f"field '{key}' has value {value!r}, but must be one of {choices}."
+        )
+    bounds = field.get("range")
+    if bounds is not None:
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            errors.append(f"field '{key}' must be numeric to apply range {bounds}.")
+        elif not bounds[0] <= value <= bounds[1]:
+            errors.append(
+                f"field '{key}' value {value} out of range [{bounds[0]}, {bounds[1]}]."
+            )
+    return errors
 
 
 def validate_schema(params: dict, schema: dict[str, FieldSchema]) -> None:
@@ -41,13 +145,16 @@ def validate_schema(params: dict, schema: dict[str, FieldSchema]) -> None:
     raises:
     - `ConfigConflictError`: if any rule fails.
     """
+    validate_schema_definition(schema)
+    if not isinstance(params, Mapping) or any(not isinstance(k, str) for k in params):
+        raise ConfigConflictError(["params must be a mapping with string keys."])
     errors: list[str] = []
     schema_keys = set(schema.keys())
     param_keys = set(params.keys())
 
     # unknown keys & suggestions
     for key in sorted(param_keys - schema_keys):
-        suggestion = _suggest(key, list(schema_keys))
+        suggestion = _suggest(key, sorted(schema_keys))
         if suggestion:
             errors.append(f"unknown field '{key}', did you mean '{suggestion}'?")
         else:
@@ -55,42 +162,13 @@ def validate_schema(params: dict, schema: dict[str, FieldSchema]) -> None:
 
     # each-field check
     for key, field in schema.items():
-        if key not in params:
-            if "default" not in field:
-                errors.append(f"missing required field '{key}'.")
+        if key not in params and "default" not in field:
+            errors.append(f"missing required field '{key}'.")
             continue
 
-        value = params[key]
+        value = params[key] if key in params else field["default"]
 
-        # null check
-        if value is None:
-            if not field.get("nullable", False):
-                errors.append(f"field '{key}' does not allow None.")
-            continue
-
-        # type check
-        declared_type = field.get("type")
-        if declared_type is not None and not isinstance(value, declared_type):
-            errors.append(
-                f"field '{key}' expects {declared_type.__name__}, "
-                f"got {type(value).__name__} (value={value!r})."
-            )
-
-        # choices check
-        choices = field.get("choices")
-        if choices is not None and value not in choices:
-            errors.append(
-                f"field '{key}' has value {value!r}, but must be one of {choices}."
-            )
-
-        # range check
-        value_range = field.get("range")
-        if value_range is not None and isinstance(value, (int, float)):
-            lo, hi = value_range
-            if not (lo <= value <= hi):
-                errors.append(
-                    f"field '{key}' value {value} out of range [{lo}, {hi}]."
-                )
+        errors.extend(_value_errors(key, value, field))
 
     # error delivery
     if errors:

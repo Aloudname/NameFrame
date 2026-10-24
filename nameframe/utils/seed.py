@@ -6,6 +6,7 @@ and to derive independent sub-seeds for isolated components.
 """
 
 import hashlib
+import json
 import random
 
 import numpy as np
@@ -23,23 +24,24 @@ def set_seed(seed: int) -> None:
     params:
     - `seed`: `int` type, master seed value.
     """
+    if isinstance(seed, bool) or not isinstance(seed, int) or not 0 <= seed < 2**32:
+        raise ValueError("seed must be an integer in [0, 2**32).")
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed(seed)
         torch.cuda.manual_seed_all(seed)
-        torch.backends.cudnn.deterministic = True
-        torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
 
 def derive_seed(base_seed: int, component: str, rank: int = 0) -> int:
     """
     derives an independent seed for a component from a master seed.
 
-    uses an md5 hash of the component name for stable offset.
-    this ensures same seed between different components,
-    while keeping reproducibility given the same base seed.
+    hashes all inputs together to avoid deterministic offset/rank collisions.
+    returns a stable uint32 seed accepted by numpy and pytorch.
 
     params:
     - `base_seed`: `int` type, the master seed from set_seed().
@@ -49,6 +51,5 @@ def derive_seed(base_seed: int, component: str, rank: int = 0) -> int:
     returns:
     - `int` type, the derived seed.
     """
-    hash_bytes: bytes = hashlib.md5(component.encode()).digest()
-    offset: int = int.from_bytes(hash_bytes[:4], byteorder="big") % 10000
-    return base_seed + offset + rank * 1000
+    payload = json.dumps([base_seed, component, rank], ensure_ascii=True).encode()
+    return int.from_bytes(hashlib.sha256(payload).digest()[:4], byteorder="big")

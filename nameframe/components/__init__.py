@@ -8,9 +8,8 @@ all components communicate through `Batch` data object.
 from nameframe.components.base import from_config
 from nameframe.components.batch import Batch
 from nameframe.components.dataset import Dataset
-from nameframe.components.loss import LossProtocol
 from nameframe.components.metric import Metric, MetricProtocol
-from nameframe.components.model import ModelProtocol
+from nameframe.utils.typing import LossProtocol, ModelProtocol
 
 __all__ = [
     "Batch",

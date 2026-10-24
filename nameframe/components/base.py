@@ -7,19 +7,31 @@ construct component instances from a *frozen* Config.
 
 from __future__ import annotations
 
-from typing import Any
+import copy
+from collections.abc import Callable
+from typing import Any, TypeVar
 
-from nameframe.config import Config, validate_schema
+from nameframe.config import (
+    Config,
+    ConfigConflictError,
+    validate_schema,
+    validate_schema_definition,
+)
+
+_Component = TypeVar("_Component")
 
 
-def from_config(cls: type, config: Config, namespace: str) -> Any:
+def from_config(
+    cls: Callable[..., _Component], config: Config, namespace: str
+) -> _Component:
     """
     construct component instances from a *frozen* Config.
 
-    works with any class with `config_schema`.
+    supports classes and callable factories, schema defaults are copied before
+    validation. absent schemas permit external constructor parameters.
 
     params:
-    - `cls`: `type` of instance.
+    - `cls`: class or callable factory.
     - `config`: `Config` type of config instance.
     - `namespace`: `str` type, dot separated namespace path.
 
@@ -28,6 +40,8 @@ def from_config(cls: type, config: Config, namespace: str) -> Any:
     """
     if not config.is_frozen:
         raise RuntimeError("config must be frozen before constructing components.")
+    if not callable(cls):
+        raise TypeError(f"component factory at '{namespace}' must be callable.")
     params: dict = config.get_namespace(namespace)
 
     # `name` is the registry key used to look up the class,
@@ -36,8 +50,37 @@ def from_config(cls: type, config: Config, namespace: str) -> Any:
 
     # discover schema via structural subtyping.
 
-    raw_schema: dict = getattr(cls, "config_schema", {})
-    schema = {k: v for k, v in raw_schema.items() if k != "name"}
-    if schema:
-        validate_schema(params, schema)
+    raw_schema = getattr(cls, "config_schema", None)
+    if raw_schema is not None:
+        try:
+            validate_schema_definition(raw_schema)
+            schema = {k: v for k, v in raw_schema.items() if k != "name"}
+            _check_concrete(params, namespace)
+            validate_schema(params, schema)
+        except ConfigConflictError as exc:
+            raise ConfigConflictError(
+                [f"{namespace}: {error}" for error in exc.errors]
+            ) from exc
+        for key, field in schema.items():
+            if key not in params and "default" in field:
+                params[key] = copy.deepcopy(field["default"])
+        _check_concrete(params, namespace)
+    else:
+        _check_concrete(params, namespace)
     return cls(**params)
+
+
+def _check_concrete(value: Any, path: str) -> None:
+    """reject unresolved search spaces even for components without a schema."""
+    if isinstance(value, str) and value.startswith("${search:"):
+        raise ConfigConflictError(
+            [
+                f"search expressions are unsupported at '{path}', provide a concrete value."
+            ]
+        )
+    if isinstance(value, dict):
+        for key, item in value.items():
+            _check_concrete(item, f"{path}.{key}")
+    elif isinstance(value, (list, tuple)):
+        for index, item in enumerate(value):
+            _check_concrete(item, f"{path}[{index}]")

@@ -1,9 +1,7 @@
-"""
-nameframe is a modular, standard deep learning training framework.
-"""
+"""small PyTorch components for configurable data and training workflows."""
 
-__version__ = "0.1.0.dev0"
+__version__ = "0.1.0.dev1"
 
-from nameframe import components, config, data, engine, registry, utils
+from nameframe import components, config, data, registry, utils
 
-__all__ = ["registry", "utils", "config", "components", "data", "engine"]
+__all__ = ["registry", "utils", "config", "components", "data"]

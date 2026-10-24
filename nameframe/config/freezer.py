@@ -22,9 +22,7 @@ class FrozenConfigError(Exception):
     def __init__(self, key: str, location: str) -> None:
         self.key = key
         self.location = location
-        super().__init__(
-            f"attempted to change frozen '{key}' at {location}."
-        )
+        super().__init__(f"attempted to change frozen '{key}' at {location}.")
 
 
 def _get_caller_location() -> str:
@@ -36,7 +34,7 @@ def _get_caller_location() -> str:
     """
     config_dir = str(Path(__file__).resolve().parent).replace("\\", "/")
 
-    for frame in traceback.extract_stack():
+    for frame in reversed(traceback.extract_stack()):
         filename = frame.filename.replace("\\", "/")
         # skip config internals and non-file frames (e.g. <frozen runpy>)
         if config_dir not in filename and not filename.startswith("<"):

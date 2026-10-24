@@ -1,419 +1,93 @@
-# 底层基础 API
+# 基础 API
 
-> `nameframe/utils` 和 `nameframe/registry` 为上层框架提供方便的组件注册、模块间共享数据类型的通信协议，以及随机数种子、环境管理等小工具。
-> 底层是零内部依赖的，外部仅依赖 *Python 3.10+* 标准库和 *PyTorch 2.0+*。
+> `nameframe.registry` 提供组件注册与查找，`nameframe.utils` 提供类型协议、随机数种子和环境记录工具。
 
----
+## 一、组件注册
 
-## 一、全局入口
+模型、数据集等组件可以直接用 Python 构造。需要根据配置中的名称切换组件时，再使用注册表：先保存名称与类的对应关系，使用时按名称查找，最后传入参数构造实例。
 
-包的顶层提供几个属性：
-
-| 符号 | 类型 | 说明 |
-|:------:|:------:|:------:|
-| `__version__` | `str` | 版本号 |
-| `registry` | module | 组件注册 |
-| `utils` | module | 零碎小工具 |
-| `config` | module | 配置系统 |
+### 1.1 注册与构造
 
 ```python
-from nameframe import __version__, registry, utils, config
+from torch import nn
+
+from nameframe.registry import Registry
+
+models = Registry("models", strict=True)
+models.register_external("linear", nn.Linear)
+
+cls = models.get("linear")
+classifier = cls(in_features=4, out_features=2)
+assert classifier.in_features == 4
 ```
 
----
+`register_external(name, item)` 用于注册已有的类或可调用工厂。自己定义组件时，也可在定义处加上 `@models.register("linear")`。省略名称则自动将 CamelCase 转为 snake_case；没有函数名的可调用实例需要显式命名。注册名必须非空，且不能含 `:`。
 
-## 二、`nameframe.registry` 注册器
+注册只保存对应关系，构造仍由用户完成。上例得到的 `nn.Linear` 接收 Tensor；接入 [Batch](components.md) 数据链路时，需要从 `batch.data` 取出输入。
 
-为方便用户拓展新的组件，采用 **注册表** 管理包括模型、损失等在内的所有组件。框架本身只实现基于注册表的组件管理和调用，将组件的注册交给用户，采用 **各自注册** 的方式拓展组件。例如，用户新定义一种损失函数，只需在定义处对该损失函数简单注册，然后在配置文件中修改损失的配置项，即可切换自定义的损失函数，不需要做任何代码上的修改。那么，如何注册组件呢？
-
-### 2.1 全局 Registry 单例
-
-首先需要导入注册表。注册表是以实例的形式存在的。注册表的底层提供这样的接口：每种组件（模型、损失等等）对应一个该类组件的 **全局单例** 注册表。后续所有相关组件可直接从 `nameframe.registry` 导入，即实现注册或查找。
-
-```python
-from nameframe.registry import model, dataset, loss, metric, ops, plugin
-```
-
-每个实例对应一种组件：
+项目可以自建注册表，也可使用 `nameframe.registry` 提供的四个全局实例：
 
 | 实例 | 用途 |
-|:------:|:------:|
-| `model` | 模型架构 |
+|------|------|
+| `model` | 模型 |
 | `dataset` | 数据集 |
 | `loss` | 损失函数 |
 | `metric` | 评估指标 |
-| `ops` | 自定义算子 |
-| `plugin` | 拓展插件 |
 
-### 2.2 `Registry` 类
+`Registry(name, base_type=None, *, strict=False)` 的 `base_type` 用于限制注册类型。指定后，只接受该基类的子类，不符合时抛出 TypeError。
 
-注册表是组件系统的核心，管理组件名（`str`）到类（`type`）的映射。每个 `Registry` 实例允许创建命名空间，实现项目间/类型间的隔离。`base_type` 是可选参数，表示注册一个基类。表中所有注册的组件必须是该类型的子类，否则抛出 `TypeError`。
+### 1.2 重名与命名空间
 
-#### 构造
+不同定义使用同一个名称，可能意外覆盖已有组件。新项目建议使用 `strict=True`，此时重名会抛出 RegistryConflictError，并列出新旧定义。默认 `strict=False` 允许覆盖；注册时传入 `replace=True` 或 `replace=False`，可单独允许或禁止覆盖。同一个对象重复注册不报错。
 
-```python
-Registry(name: str, base_type: type | None = None)
-```
+需要保留多个同名组件时，可用 `create_namespace(name)` 创建子表，再通过 `namespace:key` 查找。子表继承父表的类型限制和 strict 设置。
 
-#### 注册组件
+| 方法 | 说明 |
+|------|------|
+| `get(name)` | 查找名称或 `namespace:key`，返回类或工厂 |
+| `create_namespace(name)` | 创建或获取子表 |
+| `list_all(namespace=None)` | 返回当前表或指定子表的映射副本 |
+| `conflicting_keys(namespace)` | 列出当前表与指定子表的同名键 |
 
-三种方式都可注册组件：
+注册表还支持 `in` 和 `len()`。查找失败抛出 RegistryKeyError，可通过其 `key`、`registry_name`、`available` 属性查看请求名称、表名和可用名称。
 
-**1. 装饰器注册**
+## 二、按目录发现组件
 
-python 提供了一种方便的 [装饰器语法糖](https://cloud.tencent.com/developer/article/2541917)。注册表实例的提供了一个方法 `register(name: str | None = None) -> Callable`，就是一个装饰器包裹的工厂函数。
+注册代码在模块被导入时执行，因此通常只需显式导入组件所在模块。需要批量导入目录时，可调用 `discover(directory, strict=True)`；它会扫描 Python 模块，包括包的 `__init__.py`，并触发其中的注册代码。
 
-```python
-from nameframe.registry import model
+成功时返回 DiscoveryReport，包含 `imported` 和 `failures`。每条失败记录保留模块名、文件路径和原始异常。严格模式完成扫描后，若有失败则抛出 DiscoveryError，扫描结果保存在其 `report` 属性中；默认非严格模式只发出警告。
 
-@model.register("my_vit")
-class MyViT(nn.Module):
-    ...
+发现过程保留相对导入，成功模块使用导入缓存，失败模块可重试；同名模块会检查文件来源，结束后恢复 sys.path。不过，导入已经执行的注册等操作不会回滚，因此应在构造组件前完成发现。
 
-# 缺省时: MyViT -> "my_vit"
-@model.register()  
-class MyViT(nn.Module):
-    ...
-```
+## 三、组件类型协议
 
-参数 `name` 可以缺省。当其为 `None` 时，自动将 CamelCase 格式的类名转换为 snake_case 传入。返回的装饰器不侵入原类，注册后原样返回。这么好的方法，建议多用。
+组件之间需要约定输入和输出，但不必继承同一个基类。`nameframe.utils` 提供以下协议，满足对应方法即可用于类型检查：
 
-**2. 函数注册**
-
-通过每个类别单例的内置函数 `register_external` 注册，其语法如下。该方法用于方便注册第三方库中的类。
-
-```python
-register_external(name: str, item: type) -> None
-```
-
-应用例：
-
-```python
-model.register_external("resnet50", torchvision.models.resnet50)
-```
-
-**3. 自动发现**
-
-若不确定某路径下有多少要注册的组件，框架提供了自动搜索注册的方法：
-
-```python
-discover(Path("my_project/components"))
-```
-
-`discover(directory: Path) -> None` 递归扫描目录下所有 `.py` 文件（跳过 `__init__.py`），导入每个模块以对其尝试触发 `@*.register`。注册失败时触发 `Warning`。
-
-> NOTE：如果构造时传入 `base_type`，三种方式都会在注册时做 `issubclass` 校验，不满足则抛出 `TypeError`。
-
-#### 查找组件
-
-不同组件的注册表单例还提供一些管理和查找的接口。
-
-```python
-# 直接查找
-cls = model.get("my_vit")
-
-# 命名空间查找
-cls = model.get("proj_a:my_vit")
-
-# 成员检测
-"my_vit" in model   # -> True / False
-
-# 列出所有
-model.list_all()
-# -> {"my_vit": <class MyViT>, ...}
-
-model.list_all(namespace="proj_a")
-# -> proj_a 下的所有映射
-```
-
-`get(name: str) -> type` 根据输入值检索注册表，支持 `"ns:key"` 格式的命名空间。未找到会抛出 `RegistryKeyError(key, registry_name, available_list)`。
-
-`list_all(namespace: str | None = None) -> dict[str, type]` 返回所有已注册映射。指定 `namespace` 时只返回该命名空间内的注册。
-
-#### 魔法方法
-
-此外，还有一些魔法方法，例如注册表支持 `in` 关键字和 `len()` 方法：
-
-```python
-# bool
-"my_vit" in model
-
-# len of model registry
-model.len()
-```
-
-#### 命名空间隔离
-
-遇到不同项目中的同名注册（如 `resnet`）时，可用命名空间隔离：
-
-```python
-proj_a = model.create_namespace("proj_a")
-proj_a.register("resnet")(ResNetA)
-
-proj_b = model.create_namespace("proj_b")
-proj_b.register("resnet")(ResNetB)
-
-model.get("proj_a:resnet") # ResNetA
-model.get("proj_b:resnet") # ResNetB
-```
-
-`create_namespace(name: str) -> Registry` 创建或获取子注册表。子注册表继承父注册表的 `base_type`。
-
-`conflicting_keys(namespace: str) -> list[str]` 调试用。检查当前注册表中与指定命名空间重复的 key。
-
-#### 异常
-
-`RegistryKeyError(KeyError)` 在 `get()` 方法查找失败时抛出，其三个属性说明查找的注册名在某注册表中不存在，并列出存在的注册：
-
-| 属性 | 类型 | 说明 |
-|------|------|------|
-| `key` | `str` | 请求的 key |
-| `registry_name` | `str` | 注册表名称 |
-| `available` | `list[str]` | 当前可用的 key 列表 |
-
-组件注册的全部内容如上。
-
----
-
-## 三、`nameframe.utils` 的数据和配置交互
-
-### 3.1 `BatchProtocol` 数据交互
-
-预处理管线、模型内部、损失、推理等各组件之间的数据通信没有约束，管理起来很乱。框架定义 `BatchProtocol` 作为组件数据交互的基本类型。该类对所有组件之间传递数据的结构做约定：
-
-```python
-class BatchProtocol(Protocol):
-    data: Tensor           # 模型输入
-    target: Tensor | None  # 目标张量，无监督时为 None
-    meta: dict             # 辅助元信息
-```
-
-### 3.2 各组件数据交互
-
-为兼容不同模态的数据，框架应不需知晓数据格式，即可使各模块发挥作用。对此，不同组件应有各自的数据协议类型，定义该组件的数据结构：
-
-| Protocol | 方法 |
-|:--------:|:---:|
-| `ModelProtocol` | `forward(batch) -> Tensor`、`parameters()`、`state_dict()`、`load_state_dict()` |
-| `LossProtocol` | `forward(pred, batch) -> Tensor` |
+| 协议 | 方法 |
+|------|------|
+| `ModelProtocol` | `__call__(batch) -> Tensor` |
+| `LossProtocol` | `__call__(pred, batch) -> Tensor` |
 | `MetricProtocol` | `update(pred, batch)`、`compute() -> dict[str, float]`、`reset()` |
-| `DatasetProtocol` | `__getitem__`、`__len__`、`fingerprint()`、`transforms(mode)` |
+| `DatasetProtocol` | `__getitem__(index) -> Batch`、`__len__()`、`transforms(mode)` |
 
-> *“我们是因信称义的”*。具体组件 **不需显式继承** 对应协议，只需满足结构即可。
+协议不要求声明 config_schema。它们描述调用方式，不会在运行时检查张量形状或损失是否为标量。数据字段的实际检查见[数据管线](data.md)；配置字段的描述类型 FieldSchema 见[配置系统](config.md)。
 
-下面是一个 `ModelProtocol` 的例子。应用时，只需从 `nameframe.utils` 导入：
-
-```python
-from nameframe.utils import (
-    BatchProtocol,
-    ModelProtocol,
-    LossProtocol,
-    MetricProtocol,
-    DatasetProtocol,
-)
-```
-
-第二步，根据 `ModelProtocol` 协议定义模型。查找 `ModelProtocol` 约定的结构，发现模型必须实现一个 `config_schema` 字典和四个 `forward(batch) -> Tensor`、`parameters()`、`state_dict()`、`load_state_dict()` 方法。因而给出以下定义，可使 `VisionTransformer` 类与其余组件、配置自动交互：
+## 四、随机种子与环境
 
 ```python
-...
-from nameframe.registry import model
-from nameframe.utils import BatchProtocol
+from nameframe.utils import capture_env, derive_seed, set_seed
 
-
-@model.register()
-class VisionTransformer(nn.Module):
-    """满足 ModelProtocol 协议的 ViT 模型"""
-
-    # config_schema
-    config_schema = {
-        "image_size": {
-            "type": int,
-            "default": 224,
-            "help": "输入图像尺寸",
-        },
-        "patch_size": {
-            "type": int,
-            "default": 16,
-            "help": "Patch 大小",
-        },
-        "num_classes": {
-            "type": int,
-            "default": 1000,
-            "help": "分类类别数",
-        },
-        "dim": {
-            "type": int,
-            "default": 768,
-            "range": (128, 4096),
-            "help": "隐藏层维度",
-        },
-        "depth": {
-            "type": int,
-            "default": 12,
-            "range": (1, 128),
-            "help": "Transformer 层数",
-        },
-        "heads": {
-            "type": int,
-            "default": 12,
-            "help": "注意力头数",
-        },
-        "dropout": {
-            "type": float,
-            "default": 0.1,
-            "range": (0.0, 0.5),
-            "help": "Dropout 概率",
-        },
-    }
-
-    # 构造函数，参数与 config_schema 逐对应
-    def __init__(
-        self,
-        image_size: int = 224,
-        patch_size: int = 16,
-        num_classes: int = 1000,
-        dim: int = 768,
-        depth: int = 12,
-        heads: int = 12,
-        dropout: float = 0.1,
-    ) -> None:
-        super().__init__()
-        num_patches = (image_size // patch_size) ** 2
-
-        self.cls_token = Parameter(torch.randn(1, 1, dim))
-        self.pos_embed = Parameter(torch.randn(1, num_patches + 1, dim))
-        self.patch_embed = nn.Conv2d(3, dim, kernel_size=patch_size, stride=patch_size)
-        self.transformer = nn.TransformerEncoder(
-            nn.TransformerEncoderLayer(
-                d_model=dim, nhead=heads, dropout=dropout,
-                batch_first=True,
-            ),
-            num_layers=depth,
-        )
-        self.mlp_head = nn.Linear(dim, num_classes)
-
-    # 四个方法
-    def forward(self, batch: BatchProtocol) -> Tensor:
-        """要求 forward 方法，输入 BatchProtocol，输出 Tensor."""
-        x = self.patch_embed(batch.data) # (B, 3, H, W) -> (B, D, h, w)
-        x = x.flatten(2).transpose(1, 2) # (B, D, N)
-        x = torch.cat([self.cls_token.expand(x.size(0), -1, -1), x], dim=1)
-        x = x + self.pos_embed
-        x = self.transformer(x)[:, 0] # CLS token
-        return self.mlp_head(x) # (B, num_classes)
-
-    # 以下同上
-    def parameters(self) -> Iterator[Parameter]:
-        return super().parameters()
-
-    def state_dict(self) -> dict[str, Any]:
-        return super().state_dict()
-
-    def load_state_dict(self, state_dict: dict[str, Any],
-            strict: bool = True) -> None:
-        super().load_state_dict(state_dict, strict=strict)
-```
-
-注意到 `VisionTransformer` 类并没有显式声明自己继承自 `ModelProtocol`，但符合其结构格式，类型检查会将其视为满足 `ModelProtocol`，便可与其余组件和配置项交互。
-
-### 3.3 `config_schema` 和 `FieldSchema` 配置交互
-
-无论何种组件，都有诸多可配置项。可配置项的一端是最顶层的 `.yaml` 文件，面向用户；其另一面深入各组件内部，规定各组件可配置项的元数据。上面见到的 `config_schema` 便是深入组件内部的一端。
-
-各组件的数据类型 xxxProtocol 规定，在每个组件定义时，其内部都必须声明 `dict` 类型的 `config_schema` 变量，规定其所有可配置项元数据。例如：
-
-```python
-class MyModel(nn.Module):
-    config_schema = {
-        "hidden_dim": {
-            "type": int,
-            "default": 512,
-            "range": (64, 2048),
-            "help": "隐藏层维度",
-        },
-        "dropout": {
-            "type": float,
-            "default": 0.1,
-            "range": (0.0, 0.5),
-            "nullable": True,
-        },
-        "activation": {
-            "type": str,
-            "default": "gelu",
-            "choices": ["relu", "gelu", "silu"],
-            "help": "激活函数",
-        },
-    }
-```
-
-上面的 `config_schema` 字典，其每个值（`value`）都是一个继承自 `TypedDict` 类型的 `FieldSchema`。该类负责规定一项配置的具体细节，如 `"activation"` 的  `FieldSchema` 规定了可选的激活函数等。`FieldSchema` 的 `total=False` 字段允许只记录其中某些字段。
-
-```python
-class FieldSchema(TypedDict, total=False):
-    type: type                       # 期望类型
-    default: Any                     # 默认值
-    help: str                        # 描述文本
-    choices: list | None             # 可选值列表
-    range: tuple[float, float] | None  # 数值范围 (min, max)
-    nullable: bool                   # 是否允许 None，默认 False
-```
-
----
-
-## 四、`nameframe.utils` 的复现工具
-
-### 4.1 种子管理
-
-```python
-from nameframe.utils import set_seed, derive_seed
-
-set_seed(42) # 全局种子
-
-# 不同组件派生种子
+set_seed(42)
 model_seed = derive_seed(42, "model_init")
-loss_seed = derive_seed(42, "dropout")
-ddp_seed = derive_seed(42, "dropout", rank=1)
-```
-
-`set_seed(seed: int) -> None` 设置所有后端的随机种子（`random`、`numpy`、`torch.cpu`、`torch.cuda`），并强制 cuDNN 确定性模式。
-
-`derive_seed(base_seed: int, component: str, rank: int = 0) -> int` 从主种子为特定组件派生独立种子。相同输入、相同 rank 确保相同的输出。
-
-### 4.2 环境捕获
-
-```python
-from nameframe.utils import capture_env
-
+worker_seed = derive_seed(42, "loader", rank=1)
 env = capture_env()
-# {"python": "3.10.12", "torch": "2.5.1", "cuda": "12.4",
-#  "cudnn": "90100", "platform": "Linux-5.15.0-139-generic-..."}
+
+assert 0 <= model_seed < 2**32
+assert "torch" in env
 ```
 
-`capture_env() -> dict` 返回包含 5 个固定键（`python`、`torch`、`cuda`、`cudnn`、`platform`）的环境签名。无 CUDA 时，`cuda` 和 `cudnn` 返回 `"none"`。
+`set_seed(seed)` 接受 `[0, 2**32)` 内的整数，设置 Python、NumPy、PyTorch 的随机源，并启用 cuDNN 确定性模式、关闭 benchmark。`derive_seed(base_seed, component, rank=0)` 根据这三个值派生种子，相同输入得到相同结果。
 
----
+独立 generator、worker 和其他库的随机源仍需自行设置。固定种子也不保证不同版本、设备和算法之间逐位一致。
 
-## 五、导入
-
-```python
-# 入口
-from nameframe import __version__
-
-# 注册表
-from nameframe.registry import (
-    Registry, RegistryKeyError, discover,
-    model, dataset, loss, metric, ops, plugin,
-)
-
-# 类型协议
-from nameframe.utils import (
-    BatchProtocol, ModelProtocol, LossProtocol,
-    MetricProtocol, DatasetProtocol, FieldSchema,
-)
-
-# 工具函数
-from nameframe.utils import set_seed, derive_seed, capture_env
-```
-
----
+`capture_env()` 返回 `python`、`torch`、`cuda`、`cudnn`、`platform` 五个字符串字段；CUDA 不可用时，相关版本为 `"none"`，可将结果保存到实验记录中。

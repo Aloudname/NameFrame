@@ -1,11 +1,11 @@
 site_name: NameFrame Documentation
-site_description: Easy Deep Learning Framework.
+site_description: 面向个人研究项目的轻量 PyTorch 内核。
 site_author: Aloudname
 repo_url: https://github.com/Aloudname/NameFrame
 
 theme:
   name: material
-  language: en
+  language: zh
   palette:
     - scheme: default
       primary: indigo
@@ -29,8 +29,10 @@ plugins:
   - search
 
 nav:
-  - Home: index.md
-  - API Reference:
-    - nameframe.base: api/base.md
-    - nameframe.config: api/config.md
-    - nameframe.components: api/components.md
+  - 首页: index.md
+  - 维护与兼容: maintenance.md
+  - API:
+    - 基础: api/base.md
+    - 配置: api/config.md
+    - 组件: api/components.md
+    - 数据管线: api/data.md

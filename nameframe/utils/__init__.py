@@ -1,7 +1,6 @@
 from nameframe.utils.env import capture_env
 from nameframe.utils.seed import derive_seed, set_seed
 from nameframe.utils.typing import (
-    BatchProtocol,
     DatasetProtocol,
     FieldSchema,
     LossProtocol,
@@ -10,7 +9,6 @@ from nameframe.utils.typing import (
 )
 
 __all__ = [
-    "BatchProtocol",
     "DatasetProtocol",
     "FieldSchema",
     "LossProtocol",

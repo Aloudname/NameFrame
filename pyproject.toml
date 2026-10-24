@@ -1,30 +1,38 @@
 [build-system]
-requires = ["setuptools>=68.0"]
-build-backend = "setuptools.backends._legacy:_Backend"
+requires = ["setuptools>=77.0"]
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "nameframe"
-version = "0.1.0.dev0"
-description = "A PyTorch-based deep learning framework with swappable components."
+version = "0.1.0.dev1"
+description = "Small PyTorch components for configurable data and training workflows."
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "MIT" }
+license = "MIT"
 authors = [{ name = "Aloudname" }]
 dependencies = [
     "torch>=2.0",
     "numpy",
+    "PyYAML>=6.0",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
     "pre-commit",
+    "build",
+    "ruff==0.17.0",
+    "mypy==2.4.0",
 ]
+
+[tool.setuptools.packages.find]
+include = ["nameframe*"]
 
 [tool.setuptools.package-data]
 nameframe = ["py.typed"]
 
 [tool.pytest.ini_options]
+testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
@@ -37,6 +45,14 @@ addopts = [
 [tool.ruff]
 line-length = 88
 target-version = "py310"
+
+[tool.mypy]
+files = ["tests/typing/public_api.py"]
+python_version = "3.10"
+follow_imports = "silent"
+ignore_missing_imports = true
+check_untyped_defs = true
+warn_unused_ignores = true
 
 [tool.ruff.lint]
 select = [
